@@ -375,7 +375,7 @@ install_powerlevel10k() { die "Not implemented yet: install_powerlevel10k"; }
 
 
 
-
+install_rofi() { die "Not implemented yet: install_rofi"; }
 
 
 
