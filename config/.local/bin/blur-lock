@@ -1,7 +1,0 @@
-#!/bin/bash
-
-img="/tmp/lockscreen.png"
-scrot "$img"
-convert "$img" -blur 0x8 "$img"
-i3lock -i "$img"
-rm "$img"

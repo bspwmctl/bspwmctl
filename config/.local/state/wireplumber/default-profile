@@ -1,3 +1,0 @@
-[default-profile]
-bluez_card.4F_11_79_84_B1_46=a2dp-sink
-alsa_card.pci-0000_00_1f.3=output:analog-stereo+input:analog-stereo
