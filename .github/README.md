@@ -6,11 +6,19 @@
   Create and manage a fully configured bspwm environment using a simple CLI.
 
   <img alt="Status" src="https://img.shields.io/badge/STATUS-IN%20DEVELOPMENT-green">
-  <img alt="GitHub License" src="https://img.shields.io/github/license/bspwmctl/bspwmctl?style=flat&color=red">
-  <img alt="Version" src="https://img.shields.io/badge/Version-0.1.0-blue?labelColor=gray&style=flat">
+  
+  <a href="https://github.com/bspwmctl/bspwmctl/blob/main/LICENSE">
+    <img alt="GitHub License" src="https://img.shields.io/github/license/bspwmctl/bspwmctl?style=flat&color=red"></a>
+  
+  <a href="https://github.com/bspwmctl/bspwmctl/releases/tag/v0.1.0">
+    <img alt="Version" src="https://img.shields.io/badge/Version-0.1.0-blue?labelColor=gray&style=flat"></a>
+  
   <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/bspwmctl/bspwmctl?style=flat&color=yellow">
+  
   <img alt="Shell Script" src="https://img.shields.io/badge/Shell_Script-121011?style=flat&logo=gnu-bash&logoColor=white">
-  <img alt="bspwm" src="https://img.shields.io/badge/-bspwm-2E2E2E?style=flat&logo=bspwm&logoColor=white"/>
+    
+  <a href="https://github.com/baskerville/bspwm">
+  <img alt="bspwm" src="https://img.shields.io/badge/-bspwm-2E2E2E?style=flat&logo=bspwm&logoColor=white"/></a>
 
   ---
 
@@ -261,4 +269,5 @@ This project is licensed under the [MIT License](../LICENSE).
 <div align="center">
   <sub>Built with ❤️ by <a href="https://github.com/lukatinarelli">lukatinarelli</a></sub>
 </div>
+
 
