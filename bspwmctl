@@ -19,10 +19,12 @@ NC='\033[0m'
 
 
 # Global variables
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERSION="0.1.0"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BSPWMCTL_DATADIR="${BSPWMCTL_DATADIR:-$SCRIPT_DIR/data}"
+PREFIX="${PREFIX:-/usr/local}"
 XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
-BSPWMCTL_DIR="$XDG_DATA_HOME/bspwmctl"
+BSPWMCTL_USERDIR="$XDG_DATA_HOME/bspwmctl"
 
 
 log()     { echo -e "${BLUE}[*]${NC} $*"; }
@@ -36,7 +38,6 @@ fi
 
 
 ctrl_c() {
-  echo
   warn "Interrupted by user"
   exit 130
 }
@@ -44,6 +45,467 @@ ctrl_c() {
 trap ctrl_c INT
 trap 'tput cnorm || true' EXIT
 
+
+check_os() {
+  if [[ -f /etc/os-release ]]; then
+    . /etc/os-release
+    DISTRO_ID="${ID,,}"
+  else
+    die "Could not detect distro. /etc/os-release does not exist."
+  fi
+}
+
+
+install_dependencies() {
+  log "Installing dependencies for $DISTRO_ID (mode: $MODE)..."
+
+  case "$DISTRO_ID" in
+    ubuntu|debian|kali|parrot)
+      _install_deps_apt
+      ;;
+    arch|manjaro|endeavouros)
+      _install_deps_pacman
+      ;;
+    fedora)
+      _install_deps_dnf
+      ;;
+    *)
+      die "Unsupported distro. Supported: Ubuntu, Debian, Kali, Parrot, Arch, Manjaro, EndeavourOS, Fedora."
+      ;;
+  esac
+
+  success "Dependencies installed successfully."
+}
+
+_install_deps_apt() {
+  local deps_common="build-essential git vim wget curl unzip"
+  local deps_bspwm="xcb libxcb1-dev libxcb-util0-dev libxcb-util-dev libxcb-ewmh-dev libxcb-randr0-dev libxcb-icccm4-dev libxcb-keysyms1-dev libxcb-xinerama0-dev libasound2-dev libxcb-xtest0-dev libxcb-shape0-dev libxcb-xkb-dev libxcb-xrm-dev libxcb-cursor-dev"
+  local deps_polybar="cmake cmake-data pkg-config python3-sphinx libcairo2-dev libuv1-dev libgfshare-dev libpulse-dev libnl-genl-3-dev libmpdclient-dev libcurl4-openssl-dev libxcb-image0-dev libxcb-composite0-dev"
+  local deps_picom="meson ninja-build libxext-dev libxcb-damage0-dev libxcb-xfixes0-dev libxcb-render-util0-dev libxcb-render0-dev libxcb-present-dev libxcb-glx0-dev libpixman-1-dev libdbus-1-dev libconfig-dev libgl1-mesa-dev libegl-dev libpcre2-dev libpcre3-dev libev-dev uthash-dev xcb-proto libx11-xcb-dev python3-xcbgen libepoxy-dev"
+  local deps_gui="rofi papirus-icon-theme"
+
+  sudo apt update
+
+  case "$MODE" in
+    minimal)
+      sudo apt install -y $deps_common $deps_bspwm
+      ;;
+    standard)
+      sudo apt install -y $deps_common $deps_bspwm $deps_polybar $deps_picom $deps_gui
+      ;;
+  esac
+}
+
+_install_deps_pacman() {
+  local deps_common="base-devel git vim wget curl unzip"
+  local deps_bspwm="libxcb xcb-util xcb-util-wm xcb-util-keysyms xcb-util-xrm xcb-util-cursor"
+  local deps_polybar="cmake python-sphinx libuv cairo libpulse libmpdclient libcurl-compat"
+  local deps_picom="meson ninja libev uthash libconfig pcre2 xcb-proto python-xcbgen libepoxy"
+  local deps_gui="rofi papirus-icon-theme"
+
+  case "$MODE" in
+    minimal)
+      sudo pacman -Sy --noconfirm --needed $deps_common $deps_bspwm
+      ;;
+    standard)
+      sudo pacman -Sy --noconfirm --needed $deps_common $deps_bspwm $deps_polybar $deps_picom $deps_gui
+      ;;
+  esac
+}
+
+_install_deps_dnf() {
+  local deps_common="@development-tools git vim wget curl unzip"
+  local deps_bspwm="libxcb-devel xcb-util-devel xcb-util-wm-devel xcb-util-keysyms-devel alsa-lib-devel xcb-util-xrm-devel xcb-util-cursor-devel xcb-util-image-devel xcb-util-renderutil-devel"
+  local deps_polybar="cmake gcc-c++ cairo-devel libuv-devel pulseaudio-libs-devel libmpdclient-devel libcurl-devel wireless-tools-devel"
+  local deps_picom="meson ninja-build libev-devel libconfig-devel libX11-devel libXext-devel pcre2-devel pixman-devel uthash-devel mesa-libGL-devel libEGL-devel dbus-devel xcb-proto libX11-xcb libepoxy-devel"
+  local deps_gui="rofi papirus-icon-theme"
+
+  sudo dnf makecache
+
+  case "$MODE" in
+    minimal)
+      sudo dnf install -y $deps_common $deps_bspwm
+      ;;
+    standard)
+      sudo dnf install -y $deps_common $deps_bspwm $deps_polybar $deps_picom $deps_gui
+      ;;
+  esac
+}
+
+
+clone_or_update_repo() {
+  local repo_url="$1"
+  local extra_args="${2:-}"
+  local repo_name
+
+  repo_name="$(basename "$repo_url" .git)"
+  mkdir -p "$BSPWMCTL_USERDIR"
+  cd "$BSPWMCTL_USERDIR" || die "Cannot enter $BSPWMCTL_USERDIR"
+
+  if [[ ! -d "$repo_name" ]]; then
+    git clone --recurse-submodules $extra_args "$repo_url"
+  else
+    warn "Repo $repo_name already exists, updating..."
+    cd "$repo_name" || die "Cannot enter $repo_name"
+    git pull --ff-only
+    git submodule update --recursive
+    cd "$BSPWMCTL_USERDIR" || die
+  fi
+}
+
+
+install_bspwm() {
+  log "Installing BSPWM..."
+
+  clone_or_update_repo "https://github.com/baskerville/bspwm.git"
+
+  cd "$BSPWMCTL_USERDIR/bspwm" || die "Cannot enter bspwm"
+
+  make clean
+  make
+  sudo make PREFIX=/usr/local install
+
+  cd "$BSPWMCTL_USERDIR" || die
+
+  success "BSPWM installed."
+}
+
+
+install_sxhkd() {
+  log "Installing SXHKD..."
+
+  clone_or_update_repo "https://github.com/baskerville/sxhkd.git"
+
+  cd "$BSPWMCTL_USERDIR/sxhkd" || die "Cannot enter sxhkd"
+
+  make clean
+  make
+  sudo make PREFIX=/usr/local install
+
+  cd "$BSPWMCTL_USERDIR" || die
+
+  success "SXHKD installed."
+}
+
+
+install_kitty() {
+  log "Installing Kitty terminal..."
+
+  case "$DISTRO_ID" in
+    ubuntu|debian|kali|parrot)
+      sudo apt install -y kitty
+      ;;
+
+    arch|manjaro|endeavouros)
+      sudo pacman -Sy --noconfirm kitty
+      ;;
+
+    fedora)
+      sudo dnf install -y kitty
+      ;;
+
+    *)
+      die "Kitty not supported on this distro"
+      ;;
+  esac
+
+  success "Kitty installed."
+}
+
+
+install_polybar() {
+  log "Installing Polybar..."
+
+  clone_or_update_repo "https://github.com/polybar/polybar.git" --recursive
+
+  cd "$BSPWMCTL_USERDIR/polybar" || die "Cannot enter polybar"
+
+  if [[ -d "build" ]]; then
+    rm -rf build
+  fi
+  mkdir build
+  cd build || die
+
+  cmake -DCMAKE_INSTALL_PREFIX=/usr/local ..
+  make -j"$(nproc)"
+  sudo make install
+
+  cd "$BSPWMCTL_USERDIR" || die
+
+  success "Polybar installed."
+}
+
+
+install_picom() {
+  log "Installing Picom..."
+
+  clone_or_update_repo "https://github.com/yshui/picom.git"
+
+  cd "$BSPWMCTL_USERDIR/picom" || die "Cannot enter picom"
+
+  git submodule update --init --recursive
+
+  [[ -d build ]] && rm -rf build
+
+  meson setup build \
+    --buildtype=release \
+    --prefix=/usr/local \
+    -Dwith_docs=false
+
+  ninja -C build
+  sudo ninja -C build install
+
+  cd "$BSPWMCTL_USERDIR" || die
+
+  success "Picom installed successfully."
+}
+
+
+install_rofi() {
+  log "Installing Rofi..."
+
+  clone_or_update_repo "https://github.com/davatorium/rofi.git"
+
+  cd "$BSPWMCTL_USERDIR/rofi" || die "Cannot enter rofi"
+
+  if [[ -d "build" ]]; then
+    rm -rf build
+  fi
+  mkdir build
+  cd build || die
+
+  meson -Dprefix=/usr/local -Dxcb=enabled -Dwayland=enabled ..
+  ninja
+  sudo ninja install
+
+  cd "$BSPWMCTL_USERDIR" || die
+
+  success "Rofi installed successfully."
+}
+
+
+install_zsh() {
+  log "Installing Zsh + Oh My Zsh + Powerlevel10k..."
+
+  case "$DISTRO_ID" in
+    ubuntu|debian|kali|parrot)
+      sudo apt install -y zsh curl git
+      ;;
+    arch|manjaro|endeavouros)
+      sudo pacman -Sy --noconfirm --needed zsh curl git
+      ;;
+    fedora)
+      sudo dnf install -y zsh curl git
+      ;;
+    *)
+      die "Unsupported distro"
+      ;;
+  esac
+
+  if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
+    log "Installing Oh My Zsh..."
+    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+  else
+    warn "Oh My Zsh already installed"
+  fi
+
+  if [[ ! -d "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k" ]]; then
+    log "Installing Powerlevel10k..."
+    git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
+  else
+    warn "Powerlevel10k already installed"
+  fi
+
+  local plugins_dir="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins"
+  
+  if [[ ! -d "$plugins_dir/zsh-autosuggestions" ]]; then
+    git clone https://github.com/zsh-users/zsh-autosuggestions "$plugins_dir/zsh-autosuggestions"
+  fi
+
+  if [[ ! -d "$plugins_dir/zsh-syntax-highlighting" ]]; then
+    git clone https://github.com/zsh-users/zsh-syntax-highlighting "$plugins_dir/zsh-syntax-highlighting"
+  fi
+
+  if [[ ! -d "$plugins_dir/zsh-autocomplete" ]]; then
+    git clone https://github.com/marlonrichert/zsh-autocomplete "$plugins_dir/zsh-autocomplete"
+  fi
+
+  success "Zsh + Oh My Zsh + Powerlevel10k installed."
+}
+
+
+configure() {
+  log "Configuring bspwm environment..."
+
+  local theme_dir="$BSPWMCTL_DATADIR/themes/${CURRENT_THEME:-default}"
+
+  [[ ! -d "$theme_dir" ]] && die "Theme directory not found: $theme_dir"
+
+  mkdir -p "$HOME/.config/bspwm"
+  mkdir -p "$HOME/.config/sxhkd"
+  mkdir -p "$HOME/.config/kitty"
+  mkdir -p "$HOME/.config/polybar"
+  mkdir -p "$HOME/.config/rofi"
+
+  cp "$theme_dir/bspwmrc" "$HOME/.config/bspwm/"
+  cp "$theme_dir/sxhkdrc" "$HOME/.config/sxhkd/"
+  cp "$theme_dir/kitty.conf" "$HOME/.config/kitty/"
+  cp "$theme_dir/polybarconfig" "$HOME/.config/polybar/"
+  cp "$theme_dir/roficonfig.rasi" "$HOME/.config/rofi/"
+  cp "$theme_dir/.zshrc" "$HOME/.zshrc"
+
+  success "Configuration complete!"
+}
+
+
+get_current_theme() {
+  local current_file="$BSPWMCTL_USERDIR/.current_theme"
+
+  if [[ -f "$current_file" ]]; then
+    cat "$current_file"
+  else
+    echo "default"
+  fi
+}
+
+
+set_current_theme() {
+  local theme="$1"
+  echo "$theme" > "$BSPWMCTL_USERDIR/.current_theme"
+}
+
+
+parse_install_args() {
+  MODE=""
+  NO_DEP=false
+  THEME="default"
+  MODE_COUNT=0
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --minimal)
+        ((MODE_COUNT++))
+        [[ $MODE_COUNT -gt 1 ]] && die "Cannot combine --minimal, --standard, or --all"
+        MODE="minimal"
+        shift
+        ;;
+      --standard)
+        ((MODE_COUNT++))
+        [[ $MODE_COUNT -gt 1 ]] && die "Cannot combine --minimal, --standard, or --all"
+        MODE="standard"
+        shift
+        ;;
+      --all)
+        ((MODE_COUNT++))
+        [[ $MODE_COUNT -gt 1 ]] && die "Cannot combine --minimal, --standard, or --all"
+        MODE="full"
+        shift
+        ;;
+      --no-dep)
+        NO_DEP=true
+        shift
+        ;;
+      --theme)
+        THEME="$2"
+        shift 2
+        ;;
+      *)
+        die "Unknown option: $1"
+        ;;
+    esac
+  done
+
+  [[ -z "$MODE" ]] && MODE="standard"
+}
+
+
+cmd_theme() {
+  local theme="${1:-}"
+
+  if [[ -z "$theme" ]]; then
+    local current
+    current="$(get_current_theme)"
+    log "Current theme: $current"
+
+    echo "Available themes:"
+    ls "$BSPWMCTL_DATADIR/themes" 2>/dev/null || echo "  (no themes found)"
+    return
+  fi
+
+  log "Applying theme: $theme"
+
+  case "$theme" in
+    default)
+      configure "bspwm"
+      configure "sxhkd"
+      configure "kitty"
+      ;;
+    *)
+      die "Unknown theme: $theme"
+      ;;
+  esac
+
+  set_current_theme "$theme"
+  success "Theme applied: $theme"
+}
+
+
+cmd_install() {
+  parse_install_args "$@"
+
+  check_os
+
+  if [ "$NO_DEP" = false ]; then
+    install_dependencies
+  else
+    warn "Skipping dependency installation (--no-dep). Make sure all required packages are already installed."
+  fi
+
+  case "$MODE" in
+    minimal)
+      install_bspwm
+      install_sxhkd
+      install_kitty
+      ;;
+    standard)
+      install_bspwm
+      install_sxhkd
+      install_kitty
+      install_polybar
+      install_picom
+      install_rofi
+      install_zsh
+      ;;
+    full)
+      die "Full mode coming in v0.2.0. Use --standard for now."
+      ;;
+  esac
+
+  cmd_theme "$THEME"
+
+  success "Installation complete!"
+  success "Run: bspwmctl theme <name> to apply a theme"
+}
+
+cmd_uninstall() { die "Not implemented yet: uninstall"; }
+cmd_update()    { die "Not implemented yet: update"; }
+
+
+
+main() {
+  local cmd="${1:-help}"
+  shift || true
+
+  case "$cmd" in
+    install)    cmd_install "$@" ;;
+    uninstall)  cmd_uninstall "$@" ;;
+    theme)      cmd_theme "$@" ;;
+    update)     cmd_update "$@" ;;
+    help|-h|--help)  print_help ;;
+    version|-v|--version) print_version ;;
+    *) die "Unknown command: $cmd" ;;
+  esac
+}
 
 
 print_help() {
@@ -69,6 +531,7 @@ print_help() {
    theme [name]       Apply or show available themes
    update             Update bspwmctl to latest version
    help               Show this help panel
+   version            Show version
 
  Install options:
    --minimal           Install minimal environment (bspwm, sxhkd, kitty)
@@ -100,392 +563,6 @@ EOF
 
 print_version() {
   echo "bspwmctl $VERSION"
-}
-
-
-check_os() {
-  if [[ -f /etc/os-release ]]; then
-    . /etc/os-release
-    DISTRO_ID="${ID,,}"
-  else
-    die "Could not detect distro. /etc/os-release does not exist."
-  fi
-}
-
-
-
-install_dependencies() {
-  log "Installing dependencies for $DISTRO_ID..."
-
-  case "$DISTRO_ID" in
-    ubuntu|debian|kali|parrot)
-      sudo apt update
-      sudo apt install -y \
-        build-essential git vim wget curl unzip \
-        xcb libxcb1-dev libxcb-util0-dev libxcb-util-dev libxcb-ewmh-dev libxcb-randr0-dev \
-        libxcb-icccm4-dev libxcb-keysyms1-dev libxcb-xinerama0-dev \
-        libasound2-dev libxcb-xtest0-dev libxcb-shape0-dev \
-        libxcb-xkb-dev libxcb-xrm-dev libxcb-cursor-dev \
-        cmake cmake-data pkg-config python3-sphinx libcairo2-dev \
-        libuv1-dev libgfshare-dev libpulse-dev libnl-genl-3-dev libmpdclient-dev \
-        libcurl4-openssl-dev libxcb-image0-dev libxcb-composite0-dev \
-        meson ninja-build libxext-dev libxcb-damage0-dev libxcb-xfixes0-dev \
-        libxcb-render-util0-dev libxcb-render0-dev libxcb-present-dev \
-        libxcb-glx0-dev libpixman-1-dev libdbus-1-dev libconfig-dev \
-        libgl1-mesa-dev libegl-dev libpcre2-dev libpcre3-dev libev-dev uthash-dev \
-        xcb-proto libx11-xcb-dev python3-xcbgen libepoxy-dev \
-        rofi papirus-icon-theme
-      ;;
-
-    
-    arch|manjaro|endeavouros)
-      sudo pacman -Sy --noconfirm --needed \
-        base-devel git vim wget curl unzip \
-        libxcb xcb-util xcb-util-wm xcb-util-keysyms xcb-util-xrm xcb-util-cursor \
-        cmake python-sphinx libuv cairo libpulse libmpdclient libcurl-compat \
-        meson ninja libev uthash libconfig pcre2 xcb-proto python-xcbgen libepoxy \
-        rofi papirus-icon-theme
-      ;;
-
-    
-    fedora)
-      sudo dnf makecache
-      sudo dnf install -y \
-        @development-tools git vim wget curl unzip \
-        libxcb-devel xcb-util-devel xcb-util-wm-devel xcb-util-keysyms-devel \
-        alsa-lib-devel xcb-util-xrm-devel xcb-util-cursor-devel \
-        xcb-util-image-devel xcb-util-renderutil-devel \
-        cmake gcc-c++ cairo-devel libuv-devel pulseaudio-libs-devel \
-        libmpdclient-devel libcurl-devel wireless-tools-devel \
-        meson ninja-build libev-devel libconfig-devel libX11-devel \
-        libXext-devel pcre2-devel pixman-devel uthash-devel \
-        mesa-libGL-devel libEGL-devel dbus-devel \
-        xcb-proto libX11-xcb libepoxy-devel \
-        rofi papirus-icon-theme
-      ;;
-
-    *)
-      die "Unsupported distro. Supported: Ubuntu, Debian, Kali, Parrot, Arch, Manjaro, EndeavourOS, Fedora."
-      ;;
-
-  esac
-
-  success "Dependencies installed successfully."
-}
-
-
-clone_or_update_repo() {
-  local repo_url="$1"
-  local extra_args="${2:-}"
-  local repo_name
-
-  repo_name="$(basename "$repo_url" .git)"
-  mkdir -p "$BSPWMCTL_DIR"
-  cd "$BSPWMCTL_DIR" || die "Cannot enter $BSPWMCTL_DIR"
-
-  if [[ ! -d "$repo_name" ]]; then
-    git clone $extra_args "$repo_url"
-  else
-    warn "Repo $repo_name already exists, updating..."
-    cd "$repo_name" || die "Cannot enter $repo_name"
-    git pull --ff-only
-    cd "$BSPWMCTL_DIR" || die
-  fi
-}
-
-
-install_bspwm() {
-  log "Installing BSPWM..."
-
-  clone_or_update_repo "https://github.com/baskerville/bspwm.git"
-
-  cd "$BSPWMCTL_DIR/bspwm" || die "Cannot enter bspwm"
-
-  make clean
-  make
-  sudo make install
-
-  cd "$BSPWMCTL_DIR" || die
-
-  # Create session entry
-  if [[ ! -f /usr/share/xsessions/bspwm.desktop ]]; then
-    log "Creating session entry..."
-    sudo tee /usr/share/xsessions/bspwm.desktop > /dev/null <<'EOF'
-[Desktop Entry]
-Name=BSPWM
-Comment=Binary Space Partitioning Window Manager
-Exec=bspwm
-TryExec=bspwm
-Type=Application
-EOF
-  fi
-
-  sudo ldconfig
-
-  success "BSPWM installed."
-}
-
-
-install_sxhkd() {
-  log "Installing SXHKD..."
-
-  clone_or_update_repo "https://github.com/baskerville/sxhkd.git"
-
-  cd "$BSPWMCTL_DIR/sxhkd" || die "Cannot enter sxhkd"
-
-  make clean
-  make
-  sudo make install
-
-  cd "$BSPWMCTL_DIR" || die
-
-  success "SXHKD installed."
-}
-
-
-install_kitty() {
-  log "Installing Kitty terminal..."
-
-  case "$DISTRO_ID" in
-    ubuntu|debian|kali|parrot)
-      sudo apt install -y kitty
-      ;;
-
-    arch|manjaro|endeavouros)
-      sudo pacman -Sy --noconfirm kitty
-      ;;
-
-    fedora)
-      sudo dnf install -y kitty
-      ;;
-
-    *)
-      die "Kitty not supported on this distro"
-      ;;
-  esac
-
-  configure "kitty"
-
-  success "Kitty installed."
-}
-
-
-install_polybar() {
-  log "Installing Polybar..."
-
-  clone_or_update_repo "https://github.com/polybar/polybar.git" --recursive
-
-  cd "$BSPWMCTL_DIR/polybar" || die "Cannot enter polybar"
-
-  if [[ -d "build" ]]; then
-    rm -rf build
-  fi
-  mkdir build
-  cd build || die
-
-  cmake ..
-  make -j"$(nproc)"
-  sudo make install
-
-  cd "$BSPWMCTL_DIR" || die
-
-  configure "polybar"
-
-  success "Polybar installed."
-}
-
-
-install_picom() {
-  log "Installing Picom..."
-
-  clone_or_update_repo "https://github.com/yshui/picom.git"
-
-  cd "$BSPWMCTL_DIR/picom" || die "Cannot enter picom"
-
-  git submodule update --init --recursive
-
-  [[ -d build ]] && rm -rf build
-
-  meson setup build \
-    --buildtype=release \
-    -Dwith_docs=false
-
-  ninja -C build
-  sudo ninja -C build install
-
-  cd "$BSPWMCTL_DIR" || die
-
-  success "Picom installed successfully."
-}
-
-
-
-configure() {
-  local target="$1"
-  local config_dir="$HOME/.config/$target"
-
-  echo -e "${GREEN}⚙️ Configuring ${target^^}...${NC}"
-
-  mkdir -p "$config_dir"
-
-  if [[ -d "$BSPWMCTL_DIR/config/$target" ]]; then
-    cp -rf "$BSPWMCTL_DIR/config/$target/"* "$config_dir/"
-  else
-    die "Error: configs not found in $BSPWMCTL_DIR/config/$target"
-  fi
-
-  if [[ -f "$config_dir/${target}rc" ]]; then
-    chmod +x "$config_dir/${target}rc" || true
-  fi
-
-  success "Configs copied for $target"
-  echo
-}
-
-
-get_current_theme() {
-  local current_file="$BSPWMCTL_DIR/.current_theme"
-
-  if [[ -f "$current_file" ]]; then
-    cat "$current_file"
-  else
-    echo "default"
-  fi
-}
-
-
-set_current_theme() {
-  local theme="$1"
-  echo "$theme" > "$BSPWMCTL_DIR/.current_theme"
-}
-
-
-cmd_theme() {
-  local theme="${1:-}"
-
-  if [[ -z "$theme" ]]; then
-    local current
-    current="$(get_current_theme)"
-    log "Current theme: $current"
-
-    echo "Available themes:"
-    ls "$BSPWMCTL_DIR/themes" 2>/dev/null || echo "  (no themes found)"
-    return
-  fi
-
-  # apply theme logic
-  log "Applying theme: $theme"
-
-  case "$theme" in
-    default)
-      configure "bspwm"
-      configure "sxhkd"
-      configure "kitty"
-      ;;
-    *)
-      die "Unknown theme: $theme"
-      ;;
-  esac
-
-  set_current_theme "$theme"
-  success "Theme applied: $theme"
-}
-
-
-
-parse_install_args() {
-  MODE="minimal"
-  NO_DEP=false
-  THEME="default"
-
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --minimal)
-        MODE="minimal"
-        shift
-        ;;
-      --standard)
-        MODE="standard"
-        shift
-        ;;
-      --all)
-        MODE="full"
-        shift
-        ;;
-      --no-dep)
-        NO_DEP=true
-        shift
-        ;;
-      --theme)
-        THEME="$2"
-        shift 2
-        ;;
-      *)
-        die "Unknown option: $1"
-        ;;
-    esac
-  done
-}
-
-
-cmd_install() {
-  parse_install_args "$@"
-
-  check_os
-
-  if [ "$NO_DEP" = false ]; then
-    install_dependencies
-  else
-    warn "Skipping dependency installation (--no-dep). Make sure all required packages are already installed."
-  fi
-
-  case "$MODE" in
-    minimal)
-      install_bspwm
-      install_sxhkd
-      install_kitty
-      ;;
-    standard)
-      install_bspwm
-      install_sxhkd
-      install_kitty
-      install_polybar
-      install_picom
-      ;;
-    full)
-      die "Full mode coming in v0.2.0. Use --standard for now."
-      ;;
-    *)
-      die "Unknown install mode: $MODE"
-      ;;
-  esac
-
-  cmd_theme "$THEME"
-
-  success "Installation complete!"
-  success "Run: bspwmctl theme <name> to apply a theme"
-}
-
-
-cmd_uninstall() { die "Not implemented yet: uninstall"; }
-cmd_update()    { die "Not implemented yet: update"; }
-
-
-
-main() {
-  local cmd="${1:-help}"
-  shift || true
-
-  case "$cmd" in
-    install)    cmd_install "$@" ;;
-    uninstall)  cmd_uninstall "$@" ;;
-    theme)      cmd_theme "$@" ;;
-    update)     cmd_update "$@" ;;
-    help)       print_help ;;
-    -h|--help)  print_help ;;
-    version|-v|--version) print_version ;;
-    *) die "Unknown command: $cmd" ;;
-  esac
 }
 
 main "$@"
