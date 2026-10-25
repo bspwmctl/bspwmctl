@@ -24,13 +24,13 @@ case $chosen in
         systemctl reboot
         ;;
     $lock)
-        i3lock
+        if command -v i3lock > /dev/null; then i3lock -c 1e1e2e; else loginctl lock-session; fi
         ;;
     $suspend)
         systemctl suspend
         ;;
     $logout)
-        kill -9 -1
+        bspc quit
         ;;
 esac
 

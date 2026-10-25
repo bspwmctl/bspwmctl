@@ -6,15 +6,21 @@
 super + Return
 	kitty
 
-# i3lock 
+# lock screen
 super + l
-	~/.config/i3/lock.sh
-
+	i3lock -c 1e1e2e
 
 # program launcher
 super + d
-	rofi -show drun -theme ~/.local/share/rofi/themes/rounded-red-dark.rasi
+	[ -x ~/.config/polybar/scripts/launcher ] && ~/.config/polybar/scripts/launcher || rofi -show drun
 
+
+# file manager / browser (installed with --all)
+super + e
+	thunar
+
+super + shift + f
+	command -v firefox > /dev/null && firefox || firefox-esr
 
 # make sxhkd reload its configuration files:
 super + Escape
@@ -130,50 +136,27 @@ super + ctrl + {Left,Down,Up,Right}
 super + alt + {Left,Down,Up,Right}
 	~/.config/bspwm/scripts/bspwm_resize {west,south,north,east}
 
-########################
-# Custom Launchers App #
-########################
-
-# Firefox
-super + shift + f
-	firefox
-
-# Chrome
-super + shift + c
-	google-chrome
-
-# VSCode
-super + shift + v
-	code
-
-# Obsidian
-super + shift + o
-	flatpak run md.obsidian.Obsidian
-
-# KeePassXC
-super + shift + k
-	keepassxc
-
-# BurpSuite
-super + shift + b
-	burpsuite
-
 ###############
-# ScreenShots #
+# Screenshots #
 ###############
 
-# Capture with GUI
-@Print
-    flameshot gui 
+# Select an area
+Print
+	flameshot gui
 
-# ScreenShots Window Selected
-@Print + shift
-    screenshot window
+# Whole screen
+shift + Print
+	flameshot full
 
-# Capture the screen
-@Print + ctrl
-    flameshot screen
+##################
+# Media / screen #
+##################
 
-# Fullscreen capture
-@Print + alt
-    flameshot full
+XF86Audio{Raise,Lower}Volume
+	pactl set-sink-volume @DEFAULT_SINK@ {+5%,-5%}
+
+XF86AudioMute
+	pactl set-sink-mute @DEFAULT_SINK@ toggle
+
+XF86MonBrightness{Up,Down}
+	brightnessctl set {+5%,5%-}

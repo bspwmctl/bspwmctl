@@ -1,0 +1,48 @@
+# ~/.zshrc – installed by bspwmctl (your previous one, if any, is in ~/.zshrc.bak)
+
+# User binaries (normally added by ~/.profile, which zsh does not read)
+typeset -U path
+[[ -d ~/.local/bin ]] && path=(~/.local/bin $path)
+
+# History
+HISTFILE=~/.zsh_history
+HISTSIZE=10000
+SAVEHIST=10000
+setopt hist_ignore_all_dups hist_ignore_space share_history
+
+# Completion
+autoload -Uz compinit && compinit
+zstyle ':completion:*' menu select
+zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'
+
+# Keys (emacs mode + Home/End/Delete and ctrl+arrows to jump words)
+bindkey -e
+bindkey '^[[H' beginning-of-line
+bindkey '^[[F' end-of-line
+bindkey '^[[3~' delete-char
+bindkey '^[[1;5C' forward-word
+bindkey '^[[1;5D' backward-word
+
+# Prompt: user@host dir (git branch) ❯
+autoload -Uz vcs_info
+precmd() { vcs_info }
+zstyle ':vcs_info:git:*' formats ' %F{yellow}(%b)%f'
+setopt prompt_subst
+PROMPT='%F{blue}%n@%m%f %F{cyan}%~%f${vcs_info_msg_0_} %(?.%F{green}.%F{red})❯%f '
+
+# Aliases
+alias ls='ls --color=auto'
+alias ll='ls -lh'
+alias la='ls -lah'
+alias grep='grep --color=auto'
+
+# Plugins (path differs between distros)
+for plugin in zsh-autosuggestions zsh-syntax-highlighting; do
+  for dir in /usr/share/zsh/plugins/$plugin /usr/share/$plugin; do
+    if [[ -f $dir/$plugin.zsh ]]; then
+      source $dir/$plugin.zsh
+      break
+    fi
+  done
+done
+unset plugin dir
