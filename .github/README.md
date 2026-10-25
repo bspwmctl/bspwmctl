@@ -13,6 +13,9 @@
   <a href="https://github.com/bspwmctl/bspwmctl/releases/tag/v0.2.0-beta.1">
     <img alt="Version" src="https://img.shields.io/badge/Version-0.2.0--beta.1-blue?labelColor=gray&style=flat"></a>
   
+  <a href="https://github.com/bspwmctl/bspwmctl/actions/workflows/packages.yml">
+    <img alt="Build" src="https://img.shields.io/github/actions/workflow/status/bspwmctl/bspwmctl/packages.yml?branch=main&label=build"></a>
+
   <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/bspwmctl/bspwmctl?style=flat&color=yellow">
   
   <img alt="Shell Script" src="https://img.shields.io/badge/Shell_Script-121011?style=flat&logo=gnu-bash&logoColor=white">
@@ -54,24 +57,25 @@ Whether you're setting up a new system or want to try bspwm without manual confi
 
 ## ✨ Features
 
-- 🚀 **One-command installation** of bspwm and essential tools
-- 🎨 **Pre-configured setup** ready to use out of the box
+- 🚀 **One-command installation** of a complete bspwm desktop
+- 📦 **Official packages only**: everything is installed with `apt`, `pacman` or `dnf`, nothing is compiled
 - 🐧 **Multi-distro support** (Debian, Ubuntu, Arch, Fedora, and derivatives)
-- 📦 **Multiple installation modes** (minimal, standard, full)
-- 🎭 **Theme system** (coming in future versions)
-- 🔧 **Easy management** via simple CLI commands
+- 🧱 **Three installation modes** (minimal, standard, full)
+- 🎨 **Pre-configured setup** ready to use out of the box
+- 💾 **Automatic backups** of your configs before anything is overwritten
+- 🎭 **Theme system** (coming soon)
 
 ---
 
 ## 🐧 Supported Distributions
 
-| Distribution Family | Tested On |
-|---------------------|-----------|
-| **Debian-based**    | Ubuntu, Debian, Kali Linux, Parrot OS |
-| **Arch-based**      | Arch Linux, Manjaro, EndeavourOS |
-| **Fedora-based**    | Fedora |
+| Distribution Family | Tested On | Should also work on |
+|---------------------|-----------|---------------------|
+| **Debian-based**    | Debian 13, Ubuntu 24.04 | Kali, Parrot, Linux Mint, Pop!_OS... |
+| **Arch-based**      | Arch Linux | Manjaro, EndeavourOS, Garuda... |
+| **Fedora-based**    | Fedora | Nobara... |
 
-Other derivatives of these distributions should work, but haven't been extensively tested.
+Derivatives are detected automatically; bspwmctl warns you when your distro hasn't been tested yet.
 
 ---
 
@@ -192,14 +196,21 @@ bspwmctl install
 # Install standard environment
 bspwmctl install --standard
 
-# Install without installing dependencies (advanced)
-bspwmctl install --no-dep
+# Install everything, including extra apps
+bspwmctl install --all
 
-# Apply a theme (coming soon)
-bspwmctl theme <theme-name>
+# Only apply the configs, without installing packages (advanced)
+bspwmctl install --no-dep
 
 # Show current theme and available themes
 bspwmctl theme
+
+# Re-apply the default configs
+bspwmctl theme default
+
+# List / restore config backups
+bspwmctl restore
+bspwmctl restore <backup>
 
 # Check version
 bspwmctl --version
@@ -297,7 +308,7 @@ See the [issues page](https://github.com/bspwmctl/bspwmctl/issues) for more deta
 
 Contributions are welcome! This is an open-source project and we'd love your help making it better.
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for:
+Please read the [contributing guide](https://github.com/bspwmctl/.github/blob/main/CONTRIBUTING.md) for:
 - How to report bugs
 - How to suggest features
 - How to contribute code
@@ -313,9 +324,11 @@ This project is licensed under the [MIT License](../LICENSE).
 
 ## 💬 Support
 
-- 🐛 **Found a bug?** [Open an issue](https://github.com/bspwmctl/bspwmctl/issues/new?labels=bug)
-- 💡 **Have an idea?** [Request a feature](https://github.com/bspwmctl/bspwmctl/issues/new?labels=enhancement)
-- ❓ **Questions?** [Ask in issues](https://github.com/bspwmctl/bspwmctl/issues/new?labels=question)
+- 🐛 **Found a bug?** [Open a bug report](https://github.com/bspwmctl/bspwmctl/issues/new?template=bug_report.yml)
+- 💡 **Have an idea?** [Request a feature](https://github.com/bspwmctl/bspwmctl/issues/new?template=feature_request.yml)
+- 🔒 **Security issue?** Follow the [security policy](https://github.com/bspwmctl/.github/blob/main/SECURITY.md)
+- ❓ **Questions?** [Ask in Discussions](https://github.com/bspwmctl/bspwmctl/discussions)
+- 📖 **Documentation:** [bspwmctl.github.io/docs](https://bspwmctl.github.io/docs/)
 
 ---
 

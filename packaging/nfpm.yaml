@@ -9,7 +9,7 @@ version_schema: semver
 release: 1
 section: x11
 priority: optional
-maintainer: "Luka Ramon Tinarelli <lukaramontinarelli47@gmail.com>"
+maintainer: "Luka Ramon Tinarelli <lukatinarelli@protonmail.com>"
 vendor: bspwmctl
 homepage: https://github.com/bspwmctl/bspwmctl
 license: MIT
@@ -55,4 +55,4 @@ rpm:
   group: User Interface/Desktops
 
 archlinux:
-  packager: "Luka Ramon Tinarelli <lukaramontinarelli47@gmail.com>"
+  packager: "Luka Ramon Tinarelli <lukatinarelli@protonmail.com>"
