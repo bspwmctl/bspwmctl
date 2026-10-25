@@ -4,6 +4,8 @@ name: Packages
 # when a GitHub release is published, attaches them to it.
 
 on:
+  push:
+    branches: [main]
   release:
     types: [published]
   pull_request:

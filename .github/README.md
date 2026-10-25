@@ -13,6 +13,9 @@
   <a href="https://github.com/bspwmctl/bspwmctl/releases/tag/v0.2.0-beta.1">
     <img alt="Version" src="https://img.shields.io/badge/Version-0.2.0--beta.1-blue?labelColor=gray&style=flat"></a>
   
+  <a href="https://github.com/bspwmctl/bspwmctl/actions/workflows/packages.yml">
+    <img alt="Build" src="https://img.shields.io/github/actions/workflow/status/bspwmctl/bspwmctl/packages.yml?branch=main&label=build"></a>
+
   <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/bspwmctl/bspwmctl?style=flat&color=yellow">
   
   <img alt="Shell Script" src="https://img.shields.io/badge/Shell_Script-121011?style=flat&logo=gnu-bash&logoColor=white">
@@ -305,7 +308,7 @@ See the [issues page](https://github.com/bspwmctl/bspwmctl/issues) for more deta
 
 Contributions are welcome! This is an open-source project and we'd love your help making it better.
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for:
+Please read the [contributing guide](https://github.com/bspwmctl/.github/blob/main/CONTRIBUTING.md) for:
 - How to report bugs
 - How to suggest features
 - How to contribute code
@@ -321,8 +324,9 @@ This project is licensed under the [MIT License](../LICENSE).
 
 ## 💬 Support
 
-- 🐛 **Found a bug?** [Open an issue](https://github.com/bspwmctl/bspwmctl/issues/new?labels=bug)
-- 💡 **Have an idea?** [Request a feature](https://github.com/bspwmctl/bspwmctl/issues/new?labels=enhancement)
+- 🐛 **Found a bug?** [Open a bug report](https://github.com/bspwmctl/bspwmctl/issues/new?template=bug_report.yml)
+- 💡 **Have an idea?** [Request a feature](https://github.com/bspwmctl/bspwmctl/issues/new?template=feature_request.yml)
+- 🔒 **Security issue?** Follow the [security policy](https://github.com/bspwmctl/.github/blob/main/SECURITY.md)
 - ❓ **Questions?** [Ask in Discussions](https://github.com/bspwmctl/bspwmctl/discussions)
 - 📖 **Documentation:** [bspwmctl.github.io/docs](https://bspwmctl.github.io/docs/)
 
