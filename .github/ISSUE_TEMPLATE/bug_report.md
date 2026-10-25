@@ -27,9 +27,10 @@ What actually happened.
 
 ## 🖥️ Environment
 
-- **Distribution**: (e.g., Ubuntu 22.04, Arch Linux, Fedora 39)
+- **Distribution**: (e.g., Ubuntu 24.04, Arch Linux, Fedora 43)
 - **bspwmctl version**: (run `bspwmctl --version`)
-- **Installation mode used**: (minimal, standard, full)
+- **Installed from**: (release package / git repository)
+- **Installation mode used**: (minimal, standard, all)
 - **Shell**: (bash, zsh, etc.)
 
 ## 📸 Screenshots or Logs

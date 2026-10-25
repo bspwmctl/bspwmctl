@@ -44,7 +44,9 @@ Thank you for your interest in contributing to bspwmctl! We appreciate any help 
 - **Keep it simple**: bspwmctl is written in Shell, keep scripts readable and maintainable
 - **Follow the style**: Try to match the existing code style in the project
 - **Comment your code**: Explain complex logic or non-obvious decisions
-- **Test on multiple distros**: If possible, test on Debian, Arch, and Fedora-based systems
+- **Test on multiple distros**: If possible, test on Debian, Arch, and Fedora-based systems. `bspwmctl install` really installs packages and replaces configs, so use a VM or a container, not your daily machine
+- **Run the checks**: `bash -n bspwmctl` and `shellcheck --severity=warning bspwmctl`. Every pull request also builds the packages and test-installs them on GitHub Actions
+- **Packages**: if you add one, check that it exists with that name in Debian/Ubuntu, Arch and Fedora (names often differ)
 - **Handle errors**: Make sure your code handles edge cases and provides helpful error messages
 - **Update documentation**: If you add a new feature or option, update the `README.md` and consider updating the [documentation site][docs-repo]
 
