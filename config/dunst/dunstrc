@@ -1,0 +1,51 @@
+# Notifications (colors match polybar/colors.ini)
+
+[global]
+    monitor = 0
+    follow = mouse
+    origin = top-right
+    offset = (20, 90)
+    width = 320
+    height = (0, 200)
+    notification_limit = 5
+
+    frame_width = 2
+    frame_color = "#FEC006"
+    corner_radius = 10
+    gap_size = 8
+    padding = 12
+    horizontal_padding = 14
+    separator_color = frame
+
+    font = Iosevka Nerd Font 11
+    markup = full
+    format = "<b>%s</b>\n%b"
+    alignment = left
+    word_wrap = yes
+    ellipsize = end
+
+    icon_position = left
+    min_icon_size = 32
+    max_icon_size = 48
+    icon_theme = Papirus-Dark
+    enable_recursive_icon_lookup = true
+
+    mouse_left_click = do_action, close_current
+    mouse_middle_click = close_all
+    mouse_right_click = close_current
+
+[urgency_low]
+    background = "#435060"
+    foreground = "#FFFFFF"
+    timeout = 4
+
+[urgency_normal]
+    background = "#435060"
+    foreground = "#FFFFFF"
+    timeout = 6
+
+[urgency_critical]
+    background = "#435060"
+    foreground = "#FFFFFF"
+    frame_color = "#e53935"
+    timeout = 0

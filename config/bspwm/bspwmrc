@@ -1,60 +1,48 @@
 #!/bin/sh
 
-wmname LG3D &
-vmware-user-suid-wrapper &
-
+# Hotkey daemon
 pgrep -x sxhkd > /dev/null || sxhkd &
 
-# Configura monitores (HDMI-1 izquierda, eDP-1 derecha y principal)
-xrandr --output HDMI-1 --mode 1920x1080 --pos 0x0 --rotate normal \
-       --output eDP-1 --primary --mode 1920x1080 --pos 1920x0 --rotate normal
+# Desktops (I..X on the primary monitor; sxhkd maps super+{1-9,0} to them).
+# For multi-monitor setups, configure your outputs with xrandr here first.
+bspc monitor -d I II III IV V VI VII VIII IX X
 
-# Renombrar monitores para uso en bspwm (opcional)
-bspc monitor HDMI-1 -n monitor1
-bspc monitor eDP-1 -n monitor0
-
-# Asigna escritorios a monitores
-bspc monitor monitor0 -d I II III IV V VI VII VIII IX
-bspc monitor monitor1 -d X
-
-# Enfoca el escritorio inicial de cada monitor
-bspc monitor monitor0 -f I
-bspc monitor monitor1 -f X
-
-# Configuración general bspwm
-bspc config border_width 2
-bspc config window_gap 12
-bspc config split_ratio 0.52
-bspc config borderless_monocle true
-bspc config gapless_monocle true
+# General
+bspc config border_width         2
+bspc config window_gap           12
+bspc config split_ratio          0.52
+bspc config borderless_monocle   true
+bspc config gapless_monocle      true
 bspc config focus_follows_pointer true
 
-# Reglas para ventanas
-bspc rule -a Gimp desktop='^8' state=floating follow=on
-bspc rule -a Chromium desktop='^2'
+# Window rules
+bspc rule -a Gimp state=floating follow=on
 bspc rule -a mplayer2 state=floating
-bspc rule -a Kupfer.py focus=on
 bspc rule -a Screenkey manage=off
 bspc rule -a Tk state=floating
 
-# Fondo de pantalla
-feh --bg-fill ~/Wallpaper/s4vitar.png
-
-# Polybar
-~/.config/polybar/launch.sh
-
-# Picom compositor
-picom &
+# Wallpaper: drop an image at ~/.config/bspwm/wallpaper.{png,jpg}
+wallpaper="$(ls ~/.config/bspwm/wallpaper.* 2> /dev/null | head -n 1)"
+if [ -n "$wallpaper" ] && command -v feh > /dev/null; then
+  feh --no-fehbg --bg-fill "$wallpaper"
+else
+  xsetroot -solid "#1e1e2e" &
+fi
 
 # Cursor
 xsetroot -cursor_name left_ptr &
 
-# Iniciar udiskie
-udiskie -t &
-
-# Iniciar Syncthing
-syncthing -no-browser &
-
-# Inicia bspwm
-exec bspwm
-
+# Bar, compositor, notifications and polkit agent (only present with --standard)
+command -v polybar > /dev/null && ~/.config/polybar/launch.sh &
+if command -v picom > /dev/null; then
+  pgrep -x picom > /dev/null || picom --config ~/.config/picom/picom.conf &
+fi
+if command -v dunst > /dev/null; then
+  pgrep -x dunst > /dev/null || dunst &
+fi
+for agent in /usr/libexec/polkit-mate-authentication-agent-1 /usr/lib/mate-polkit/polkit-mate-authentication-agent-1; do
+  if [ -x "$agent" ]; then
+    pgrep -f polkit-mate-authentication-agent-1 > /dev/null || "$agent" &
+    break
+  fi
+done

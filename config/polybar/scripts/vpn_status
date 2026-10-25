@@ -1,0 +1,11 @@
+#!/bin/sh
+
+# Print the IP of the first VPN interface (tun*/wg*), if any
+
+ip="$(ip -4 -o addr show 2> /dev/null | awk '$2 ~ /^(tun|wg)/ {split($4, a, "/"); print a[1]; exit}')"
+
+if [ -n "$ip" ]; then
+  echo "%{F#1bbf3e} %{F#ffffff}$ip"
+else
+  echo "%{F#808080} Disconnected"
+fi

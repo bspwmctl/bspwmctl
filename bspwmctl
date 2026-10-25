@@ -7,7 +7,7 @@ set -Eeuo pipefail
 
 
 # Hide cursor
-tput civis || true
+tput civis 2> /dev/null || true
 
 
 # Colors
@@ -19,10 +19,22 @@ NC='\033[0m'
 
 
 # Global variables
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VERSION="0.1.0"
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+VERSION="0.2.0-beta.1"
 XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+THEMES=(default)
 BSPWMCTL_DIR="$XDG_DATA_HOME/bspwmctl"
+
+# One backup directory per run, created on the first overwritten file
+BACKUP_ROOT="$BSPWMCTL_DIR/backups"
+BACKUP_DIR=""
+
+# Bundled configs: next to the script when run from the repo, /usr/share when installed as a package
+if [[ -d "$SCRIPT_DIR/config" ]]; then
+  CONFIG_SRC="$SCRIPT_DIR/config"
+else
+  CONFIG_SRC="/usr/share/bspwmctl/config"
+fi
 
 
 log()     { echo -e "${BLUE}[*]${NC} $*"; }
@@ -30,9 +42,6 @@ success() { echo -e "${GREEN}[✔]${NC} $*"; }
 warn()    { echo -e "${YELLOW}[!]${NC} $*"; }
 die()     { echo -e "${RED}[✖]${NC} $*" >&2; exit 1; }
 
-if [[ $EUID -eq 0 ]]; then
-  die "Do not run this script as root. Use a normal user."
-fi
 
 
 ctrl_c() {
@@ -42,7 +51,7 @@ ctrl_c() {
 }
 
 trap ctrl_c INT
-trap 'tput cnorm || true' EXIT
+trap 'tput cnorm 2> /dev/null || true' EXIT
 
 
 
@@ -65,21 +74,30 @@ print_help() {
 
  Commands:
    install            Install bspwm environment
-   uninstall          Remove bspwmctl files and configs
    theme [name]       Apply or show available themes
-   update             Update bspwmctl to latest version
+   restore [backup]   List config backups / restore one
+   uninstall          Remove bspwmctl files and configs (coming soon)
+   update             Update bspwmctl to latest version (coming soon)
    help               Show this help panel
+   version            Show the version
 
  Install options:
-   --minimal           Install minimal environment (bspwm, sxhkd, kitty)
-   --standard          Install full desktop without extra apps (default)
-   --all               Install full desktop + extra applications
-   --no-dep            Skip dependency installation
+   --minimal           bspwm, sxhkd, kitty, rofi (default)
+   --standard          + polybar, picom, notifications, lock screen,
+                         screenshots, zsh...
+   --all               + file manager, browser and other apps
+   --no-dep            Skip package installation
    --theme <name>      Apply theme after installation
 
  Theme command:
    bspwmctl theme              Show current theme / available themes
    bspwmctl theme <name>       Apply selected theme
+
+ Backups:
+   Files that would be overwritten are first copied to
+   ~/.local/share/bspwmctl/backups/<date>/
+   bspwmctl restore            List backups
+   bspwmctl restore <date>     Restore a backup
 
  Global options:
    -h, --help          Show help
@@ -87,12 +105,11 @@ print_help() {
 
  Examples:
    bspwmctl install
-   bspwmctl install --minimal
-   bspwmctl install --standard --theme nord
-   bspwmctl theme dracula
+   bspwmctl install --standard
+   bspwmctl theme default
 
  Project:
-   https://github.com/lukatinarelli/bspwmctl
+   https://github.com/bspwmctl/bspwmctl
 
 EOF
 }
@@ -104,220 +121,153 @@ print_version() {
 
 
 check_os() {
+  local id
+
   if [[ -f /etc/os-release ]]; then
+    # shellcheck source=/dev/null
     . /etc/os-release
-    DISTRO_ID="${ID,,}"
   else
     die "Could not detect distro. /etc/os-release does not exist."
   fi
-}
 
+  DISTRO_ID="${ID,,}"
+  DISTRO_FAMILY=""
 
+  # Derivatives (Linux Mint, Pop!_OS, Garuda, Nobara...) are detected through ID_LIKE
+  for id in ${ID,,} ${ID_LIKE:-}; do
+    case "${id,,}" in
+      ubuntu)       DISTRO_FAMILY="ubuntu"; break ;;
+      debian)       DISTRO_FAMILY="debian"; break ;;
+      arch)         DISTRO_FAMILY="arch";   break ;;
+      fedora)       DISTRO_FAMILY="fedora"; break ;;
+    esac
+  done
 
-install_dependencies() {
-  log "Installing dependencies for $DISTRO_ID..."
-
+  # Kali and Parrot only declare ID_LIKE=debian, but match their own IDs explicitly too
   case "$DISTRO_ID" in
-    ubuntu|debian|kali|parrot)
-      sudo apt update
-      sudo apt install -y \
-        build-essential git vim wget curl unzip \
-        xcb libxcb1-dev libxcb-util0-dev libxcb-util-dev libxcb-ewmh-dev libxcb-randr0-dev \
-        libxcb-icccm4-dev libxcb-keysyms1-dev libxcb-xinerama0-dev \
-        libasound2-dev libxcb-xtest0-dev libxcb-shape0-dev \
-        libxcb-xkb-dev libxcb-xrm-dev libxcb-cursor-dev \
-        cmake cmake-data pkg-config python3-sphinx libcairo2-dev \
-        libuv1-dev libgfshare-dev libpulse-dev libnl-genl-3-dev libmpdclient-dev \
-        libcurl4-openssl-dev libxcb-image0-dev libxcb-composite0-dev \
-        meson ninja-build libxext-dev libxcb-damage0-dev libxcb-xfixes0-dev \
-        libxcb-render-util0-dev libxcb-render0-dev libxcb-present-dev \
-        libxcb-glx0-dev libpixman-1-dev libdbus-1-dev libconfig-dev \
-        libgl1-mesa-dev libegl-dev libpcre2-dev libpcre3-dev libev-dev uthash-dev \
-        xcb-proto libx11-xcb-dev python3-xcbgen libepoxy-dev \
-        rofi papirus-icon-theme
-      ;;
-
-    
-    arch|manjaro|endeavouros)
-      sudo pacman -Sy --noconfirm --needed \
-        base-devel git vim wget curl unzip \
-        libxcb xcb-util xcb-util-wm xcb-util-keysyms xcb-util-xrm xcb-util-cursor \
-        cmake python-sphinx libuv cairo libpulse libmpdclient libcurl-compat \
-        meson ninja libev uthash libconfig pcre2 xcb-proto python-xcbgen libepoxy \
-        rofi papirus-icon-theme
-      ;;
-
-    
-    fedora)
-      sudo dnf makecache
-      sudo dnf install -y \
-        @development-tools git vim wget curl unzip \
-        libxcb-devel xcb-util-devel xcb-util-wm-devel xcb-util-keysyms-devel \
-        alsa-lib-devel xcb-util-xrm-devel xcb-util-cursor-devel \
-        xcb-util-image-devel xcb-util-renderutil-devel \
-        cmake gcc-c++ cairo-devel libuv-devel pulseaudio-libs-devel \
-        libmpdclient-devel libcurl-devel wireless-tools-devel \
-        meson ninja-build libev-devel libconfig-devel libX11-devel \
-        libXext-devel pcre2-devel pixman-devel uthash-devel \
-        mesa-libGL-devel libEGL-devel dbus-devel \
-        xcb-proto libX11-xcb libepoxy-devel \
-        rofi papirus-icon-theme
-      ;;
-
-    *)
-      die "Unsupported distro. Supported: Ubuntu, Debian, Kali, Parrot, Arch, Manjaro, EndeavourOS, Fedora."
-      ;;
-
+    kali|parrot)            DISTRO_FAMILY="debian" ;;
+    manjaro|endeavouros)    DISTRO_FAMILY="arch" ;;
   esac
 
-  success "Dependencies installed successfully."
-}
-
-
-clone_or_update_repo() {
-  local repo_url="$1"
-  local extra_args="${2:-}"
-  local repo_name
-
-  repo_name="$(basename "$repo_url" .git)"
-  mkdir -p "$BSPWMCTL_DIR"
-  cd "$BSPWMCTL_DIR" || die "Cannot enter $BSPWMCTL_DIR"
-
-  if [[ ! -d "$repo_name" ]]; then
-    git clone $extra_args "$repo_url"
-  else
-    warn "Repo $repo_name already exists, updating..."
-    cd "$repo_name" || die "Cannot enter $repo_name"
-    git pull --ff-only
-    cd "$BSPWMCTL_DIR" || die
-  fi
-}
-
-
-install_bspwm() {
-  log "Installing BSPWM..."
-
-  clone_or_update_repo "https://github.com/baskerville/bspwm.git"
-
-  cd "$BSPWMCTL_DIR/bspwm" || die "Cannot enter bspwm"
-
-  make clean
-  make
-  sudo make install
-
-  cd "$BSPWMCTL_DIR" || die
-
-  # Create session entry
-  if [[ ! -f /usr/share/xsessions/bspwm.desktop ]]; then
-    log "Creating session entry..."
-    sudo tee /usr/share/xsessions/bspwm.desktop > /dev/null <<'EOF'
-[Desktop Entry]
-Name=BSPWM
-Comment=Binary Space Partitioning Window Manager
-Exec=bspwm
-TryExec=bspwm
-Type=Application
-EOF
-  fi
-
-  sudo ldconfig
-
-  success "BSPWM installed."
-}
-
-
-install_sxhkd() {
-  log "Installing SXHKD..."
-
-  clone_or_update_repo "https://github.com/baskerville/sxhkd.git"
-
-  cd "$BSPWMCTL_DIR/sxhkd" || die "Cannot enter sxhkd"
-
-  make clean
-  make
-  sudo make install
-
-  cd "$BSPWMCTL_DIR" || die
-
-  success "SXHKD installed."
-}
-
-
-install_kitty() {
-  log "Installing Kitty terminal..."
+  [[ -n "$DISTRO_FAMILY" ]] || die "Unsupported distro: ${PRETTY_NAME:-$DISTRO_ID}. Supported: Debian, Ubuntu, Arch, Fedora and their derivatives."
 
   case "$DISTRO_ID" in
-    ubuntu|debian|kali|parrot)
-      sudo apt install -y kitty
+    ubuntu|debian|kali|parrot|arch|manjaro|endeavouros|fedora) ;;
+    *) warn "${PRETTY_NAME:-$DISTRO_ID} is not tested, treating it as $DISTRO_FAMILY." ;;
+  esac
+}
+
+
+
+set_packages() {
+  case "$DISTRO_FAMILY" in
+    debian|ubuntu)
+      PKG_MANAGER="apt"
+      PKGS_MINIMAL=(bspwm sxhkd kitty rofi feh x11-xserver-utils fontconfig diffutils)
+      PKGS_STANDARD=(polybar picom dunst libnotify-bin i3lock flameshot brightnessctl
+                     pavucontrol pulseaudio-utils xclip papirus-icon-theme mate-polkit
+                     zsh zsh-autosuggestions zsh-syntax-highlighting)
+      PKGS_FULL=(thunar btop mpv zathura zathura-pdf-poppler network-manager-gnome)
+      # Debian ships firefox-esr; Ubuntu-based distros already include a Firefox
+      # (a snap on Ubuntu itself), so it is not installed there
+      if [[ "$DISTRO_FAMILY" == debian ]]; then
+        PKGS_FULL+=(firefox-esr)
+      fi
       ;;
 
-    arch|manjaro|endeavouros)
-      sudo pacman -Sy --noconfirm kitty
+    arch)
+      PKG_MANAGER="pacman"
+      PKGS_MINIMAL=(bspwm sxhkd kitty rofi feh xorg-xsetroot fontconfig diffutils)
+      PKGS_STANDARD=(polybar picom dunst libnotify i3lock flameshot brightnessctl
+                     pavucontrol libpulse xclip papirus-icon-theme mate-polkit
+                     zsh zsh-autosuggestions zsh-syntax-highlighting)
+      PKGS_FULL=(thunar btop mpv zathura zathura-pdf-poppler nm-connection-editor firefox)
       ;;
 
     fedora)
-      sudo dnf install -y kitty
+      PKG_MANAGER="dnf"
+      PKGS_MINIMAL=(bspwm sxhkd kitty rofi feh xsetroot fontconfig diffutils)
+      PKGS_STANDARD=(polybar picom dunst libnotify i3lock flameshot brightnessctl
+                     pavucontrol pulseaudio-utils xclip papirus-icon-theme mate-polkit
+                     zsh zsh-autosuggestions zsh-syntax-highlighting)
+      PKGS_FULL=(Thunar btop mpv zathura zathura-pdf-poppler nm-connection-editor firefox)
       ;;
 
     *)
-      die "Kitty not supported on this distro"
+      die "Unsupported distro family: $DISTRO_FAMILY"
+      ;;
+  esac
+}
+
+
+install_packages() {
+  log "Installing packages with $PKG_MANAGER: $*"
+
+  case "$PKG_MANAGER" in
+    apt)
+      sudo apt-get update
+      sudo apt-get install -y "$@"
+      ;;
+    pacman)
+      # Arch does not support partial upgrades, so sync and upgrade together
+      sudo pacman -Syu --noconfirm --needed "$@"
+      ;;
+    dnf)
+      sudo dnf install -y "$@"
       ;;
   esac
 
-  configure "kitty"
-
-  success "Kitty installed."
+  success "Packages installed successfully."
 }
 
 
-install_polybar() {
-  log "Installing Polybar..."
+# Binaries built from source by bspwmctl <= 0.1.0 live in /usr/local/bin and
+# shadow the distro packages, so warn about them.
+check_source_builds() {
+  local bin
 
-  clone_or_update_repo "https://github.com/polybar/polybar.git" --recursive
+  for bin in bspwm bspc sxhkd polybar polybar-msg picom; do
+    if [[ -e "/usr/local/bin/$bin" ]]; then
+      warn "/usr/local/bin/$bin (built from source) takes precedence over the $PKG_MANAGER package. Remove it to use the packaged version."
+    fi
+  done
+}
 
-  cd "$BSPWMCTL_DIR/polybar" || die "Cannot enter polybar"
 
-  if [[ -d "build" ]]; then
-    rm -rf build
+
+# Copy a file or directory under $HOME into this run's backup directory,
+# keeping its path relative to $HOME (e.g. .config/bspwm, .zshrc)
+backup_path() {
+  local path="$1"
+  local rel="${path#"$HOME"/}"
+
+  if [[ -z "$BACKUP_DIR" ]]; then
+    BACKUP_DIR="$BACKUP_ROOT/$(date +%Y%m%d-%H%M%S)"
+    while [[ -e "$BACKUP_DIR" ]]; do BACKUP_DIR="$BACKUP_DIR-1"; done
+    mkdir -p "$BACKUP_DIR"
+    log "Saving current configs to $BACKUP_DIR"
   fi
-  mkdir build
-  cd build || die
 
-  cmake ..
-  make -j"$(nproc)"
-  sudo make install
-
-  cd "$BSPWMCTL_DIR" || die
-
-  configure "polybar"
-
-  success "Polybar installed."
+  mkdir -p "$BACKUP_DIR/$(dirname "$rel")"
+  cp -a "$path" "$BACKUP_DIR/$rel"
 }
 
 
-install_picom() {
-  log "Installing Picom..."
-
-  clone_or_update_repo "https://github.com/yshui/picom.git"
-
-  cd "$BSPWMCTL_DIR/picom" || die "Cannot enter picom"
-
-  git submodule update --init --recursive
-
-  [[ -d build ]] && rm -rf build
-
-  meson setup build \
-    --buildtype=release \
-    -Dwith_docs=false
-
-  ninja -C build
-  sudo ninja -C build install
-
-  cd "$BSPWMCTL_DIR" || die
-
-  success "Picom installed successfully."
+# True if copying $1 over $2 would change any existing file.
+# Without diff we can't tell, so assume it would (better an extra backup).
+would_overwrite() {
+  [[ -e "$2" ]] || return 1
+  command -v diff > /dev/null || return 0
+  # LC_ALL=C: diff messages are translated otherwise
+  { LC_ALL=C diff -rq "$1" "$2" 2> /dev/null || true; } | grep -qE ' differ$|while file'
 }
 
+
+report_backup() {
+  if [[ -n "$BACKUP_DIR" ]]; then
+    warn "Your previous configs were saved. Restore them with: bspwmctl restore $(basename "$BACKUP_DIR")"
+  fi
+}
 
 
 configure() {
@@ -326,13 +276,14 @@ configure() {
 
   echo -e "${GREEN}⚙️ Configuring ${target^^}...${NC}"
 
-  mkdir -p "$config_dir"
+  [[ -d "$CONFIG_SRC/$target" ]] || die "Error: configs not found in $CONFIG_SRC/$target"
 
-  if [[ -d "$BSPWMCTL_DIR/config/$target" ]]; then
-    cp -rf "$BSPWMCTL_DIR/config/$target/"* "$config_dir/"
-  else
-    die "Error: configs not found in $BSPWMCTL_DIR/config/$target"
+  if would_overwrite "$CONFIG_SRC/$target" "$config_dir"; then
+    backup_path "$config_dir"
   fi
+
+  mkdir -p "$config_dir"
+  cp -rf "$CONFIG_SRC/$target/"* "$config_dir/"
 
   if [[ -f "$config_dir/${target}rc" ]]; then
     chmod +x "$config_dir/${target}rc" || true
@@ -340,6 +291,41 @@ configure() {
 
   success "Configs copied for $target"
   echo
+}
+
+
+install_fonts() {
+  local fonts_dir="$XDG_DATA_HOME/fonts/bspwmctl"
+
+  log "Installing fonts..."
+
+  mkdir -p "$fonts_dir"
+  cp -f "$CONFIG_SRC/polybar/fonts/"* "$fonts_dir/"
+  fc-cache -f "$fonts_dir" > /dev/null
+
+  success "Fonts installed in $fonts_dir"
+}
+
+
+setup_zsh() {
+  local zsh_path user
+
+  zsh_path="$(command -v zsh)" || { warn "zsh not found, skipping shell setup."; return; }
+  user="$(id -un)"
+
+  log "Setting up zsh..."
+
+  if would_overwrite "$CONFIG_SRC/zsh/zshrc" "$HOME/.zshrc"; then
+    backup_path "$HOME/.zshrc"
+  fi
+  cp -f "$CONFIG_SRC/zsh/zshrc" "$HOME/.zshrc"
+
+  if [[ "$(getent passwd "$user" | cut -d: -f7)" != "$zsh_path" ]]; then
+    sudo usermod -s "$zsh_path" "$user"
+    success "Default shell changed to zsh (takes effect on next login)."
+  fi
+
+  success "zsh configured."
 }
 
 
@@ -354,8 +340,18 @@ get_current_theme() {
 }
 
 
+is_known_theme() {
+  local theme
+  for theme in "${THEMES[@]}"; do
+    [[ "$theme" == "$1" ]] && return 0
+  done
+  return 1
+}
+
+
 set_current_theme() {
   local theme="$1"
+  mkdir -p "$BSPWMCTL_DIR"
   echo "$theme" > "$BSPWMCTL_DIR/.current_theme"
 }
 
@@ -369,21 +365,25 @@ cmd_theme() {
     log "Current theme: $current"
 
     echo "Available themes:"
-    ls "$BSPWMCTL_DIR/themes" 2>/dev/null || echo "  (no themes found)"
+    printf '  %s\n' "${THEMES[@]}"
     return
   fi
+
+  is_known_theme "$theme" || die "Unknown theme: $theme. Available: ${THEMES[*]}"
 
   # apply theme logic
   log "Applying theme: $theme"
 
   case "$theme" in
     default)
+      install_fonts
       configure "bspwm"
       configure "sxhkd"
       configure "kitty"
-      ;;
-    *)
-      die "Unknown theme: $theme"
+      # Only configure optional components that are installed (--standard)
+      command -v polybar > /dev/null && configure "polybar"
+      command -v picom > /dev/null && configure "picom"
+      command -v dunst > /dev/null && configure "dunst"
       ;;
   esac
 
@@ -417,11 +417,13 @@ parse_install_args() {
         shift
         ;;
       --theme)
+        [[ -n "${2:-}" ]] || die "--theme requires a theme name"
+        is_known_theme "$2" || die "Unknown theme: $2. Available: ${THEMES[*]}"
         THEME="$2"
         shift 2
         ;;
       *)
-        die "Unknown option: $1"
+        die "Unknown option: $1. Run 'bspwmctl help' for usage."
         ;;
     esac
   done
@@ -432,38 +434,85 @@ cmd_install() {
   parse_install_args "$@"
 
   check_os
+  set_packages
 
-  if [ "$NO_DEP" = false ]; then
-    install_dependencies
-  else
-    warn "Skipping dependency installation (--no-dep). Make sure all required packages are already installed."
-  fi
+  local packages=("${PKGS_MINIMAL[@]}")
 
   case "$MODE" in
     minimal)
-      install_bspwm
-      install_sxhkd
-      install_kitty
       ;;
     standard)
-      install_bspwm
-      install_sxhkd
-      install_kitty
-      install_polybar
-      install_picom
+      packages+=("${PKGS_STANDARD[@]}")
       ;;
     full)
-      die "Full mode coming in v0.2.0. Use --standard for now."
+      packages+=("${PKGS_STANDARD[@]}" "${PKGS_FULL[@]}")
       ;;
     *)
       die "Unknown install mode: $MODE"
       ;;
   esac
 
+  if [ "$NO_DEP" = false ]; then
+    install_packages "${packages[@]}"
+  else
+    warn "Skipping package installation (--no-dep). Make sure these are installed: ${packages[*]}"
+  fi
+
+  check_source_builds
+
+  if [[ "$MODE" != minimal ]]; then
+    setup_zsh
+  fi
+
   cmd_theme "$THEME"
 
   success "Installation complete!"
-  success "Run: bspwmctl theme <name> to apply a theme"
+  success "Log out and select the bspwm session in your login screen."
+}
+
+
+cmd_restore() {
+  local id="${1:-}"
+  local src item rel target
+
+  if [[ -z "$id" ]]; then
+    if [[ ! -d "$BACKUP_ROOT" ]] || [[ -z "$(ls -A "$BACKUP_ROOT")" ]]; then
+      log "No backups found."
+      return
+    fi
+
+    log "Available backups (newest last):"
+    for src in "$BACKUP_ROOT"/*/; do
+      src="${src%/}"
+      echo "  $(basename "$src")  $(cd "$src" && ls -A .config 2> /dev/null | tr '\n' ' ')$([[ -e "$src/.zshrc" ]] && echo ".zshrc")"
+    done
+    echo
+    echo "Restore one with: bspwmctl restore <backup>"
+    return
+  fi
+
+  src="$BACKUP_ROOT/$id"
+  [[ -n "$id" && "$id" != */* && -d "$src" ]] || die "Backup not found: $id"
+
+  log "Restoring backup $id..."
+
+  for item in "$src/.zshrc" "$src"/.config/*; do
+    [[ -e "$item" ]] || continue
+    rel="${item#"$src"/}"
+    target="$HOME/$rel"
+
+    # Keep the current state too, so a restore can be undone
+    if [[ -e "$target" ]]; then
+      backup_path "$target"
+      rm -rf "$target"
+    fi
+
+    mkdir -p "$(dirname "$target")"
+    cp -a "$item" "$target"
+    success "Restored ~/$rel"
+  done
+
+  success "Backup $id restored."
 }
 
 
@@ -476,16 +525,24 @@ main() {
   local cmd="${1:-help}"
   shift || true
 
+  # Configs go to the invoking user's $HOME; sudo is used only for packages
+  if [[ $EUID -eq 0 && "$cmd" =~ ^(install|theme|restore)$ ]]; then
+    die "Do not run 'bspwmctl $cmd' as root. Use a normal user."
+  fi
+
   case "$cmd" in
     install)    cmd_install "$@" ;;
     uninstall)  cmd_uninstall "$@" ;;
     theme)      cmd_theme "$@" ;;
+    restore)    cmd_restore "$@" ;;
     update)     cmd_update "$@" ;;
     help)       print_help ;;
     -h|--help)  print_help ;;
     version|-v|--version) print_version ;;
-    *) die "Unknown command: $cmd" ;;
+    *) die "Unknown command: $cmd. Run 'bspwmctl help' for usage." ;;
   esac
+
+  report_backup
 }
 
 main "$@"

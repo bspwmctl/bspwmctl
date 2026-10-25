@@ -1,0 +1,17 @@
+#!/bin/sh
+
+# Resize the focused window towards a direction (west, south, north, east).
+# Grows the window on that side, or shrinks it from the opposite side if it
+# is already at the edge.
+
+step=20
+
+case "$1" in
+  west)  dir=right; falldir=left;   x="-$step"; y=0 ;;
+  east)  dir=right; falldir=left;   x="$step";  y=0 ;;
+  north) dir=top;   falldir=bottom; x=0; y="-$step" ;;
+  south) dir=top;   falldir=bottom; x=0; y="$step" ;;
+  *) echo "usage: $0 {west|south|north|east}" >&2; exit 1 ;;
+esac
+
+bspc node -z "$dir" "$x" "$y" || bspc node -z "$falldir" "$x" "$y"
