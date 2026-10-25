@@ -1,0 +1,58 @@
+# nfpm config: builds the .deb, .rpm and Arch package from the same files.
+# VERSION comes from the environment (packaging/build.sh reads it from ./bspwmctl).
+
+name: bspwmctl
+arch: all
+platform: linux
+version: ${VERSION}
+version_schema: semver
+release: 1
+section: x11
+priority: optional
+maintainer: "Luka Ramon Tinarelli <lukaramontinarelli47@gmail.com>"
+vendor: bspwmctl
+homepage: https://github.com/bspwmctl/bspwmctl
+license: MIT
+description: |-
+  Opinionated bspwm desktop installer and manager.
+  Installs bspwm, sxhkd, polybar, picom and the rest of the desktop from
+  your distribution's packages and applies a ready-to-use configuration.
+  Run `bspwmctl install` after installing this package.
+
+# Only what bspwmctl itself needs; the desktop is installed by `bspwmctl install`
+depends:
+  - bash
+  - sudo
+  - diffutils
+  - fontconfig
+
+contents:
+  - src: ./bspwmctl
+    dst: /usr/bin/bspwmctl
+    file_info:
+      mode: 0755
+
+  - src: ./config
+    dst: /usr/share/bspwmctl/config
+    type: tree
+
+  - src: ./CHANGELOG.md
+    dst: /usr/share/doc/bspwmctl/CHANGELOG.md
+
+  - src: ./LICENSE
+    dst: /usr/share/doc/bspwmctl/copyright
+    packager: deb
+
+  - src: ./LICENSE
+    dst: /usr/share/licenses/bspwmctl/LICENSE
+    packager: rpm
+
+  - src: ./LICENSE
+    dst: /usr/share/licenses/bspwmctl/LICENSE
+    packager: archlinux
+
+rpm:
+  group: User Interface/Desktops
+
+archlinux:
+  packager: "Luka Ramon Tinarelli <lukaramontinarelli47@gmail.com>"
