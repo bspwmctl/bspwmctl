@@ -11,7 +11,7 @@
     <img alt="GitHub License" src="https://img.shields.io/github/license/bspwmctl/bspwmctl?style=flat&color=red"></a>
   
   <a href="https://github.com/bspwmctl/bspwmctl/releases/tag/v0.2.0-beta.1">
-    <img alt="Version" src="https://img.shields.io/badge/Version-0.2.0--beta.1-blue?labelColor=gray&style=flat"></a>
+    <img alt="Version" src="https://img.shields.io/github/v/release/bspwmctl/bspwmctl?include_prereleases&label=Version&color=blue&labelColor=gray&style=flat"></a>
   
   <a href="https://github.com/bspwmctl/bspwmctl/actions/workflows/packages.yml">
     <img alt="Build" src="https://img.shields.io/github/actions/workflow/status/bspwmctl/bspwmctl/packages.yml?branch=main&label=build"></a>
@@ -38,8 +38,8 @@
 4. [Quick Start](#-quick-start)
 5. [Installation Modes](#-installation-modes)
 6. [Usage](#-usage)
-7. [What Gets Installed](#-what-gets-installed)
-8. [Roadmap](#-roadmap)
+7. [What Gets Installed](#%EF%B8%8F-what-gets-installed)
+8. [Roadmap](#%EF%B8%8F-roadmap)
 9. [Contributing](#-contributing)
 10. [License](#-license)
 
@@ -51,7 +51,7 @@
 
 Whether you're setting up a new system or want to try bspwm without manual configuration hell, bspwmctl does the heavy lifting for you.
 
-> ⚠️ **This is a v0.2.0 beta release.** Core functionality works, but some features are still under development. See the [Roadmap](#-roadmap) for what's coming next.
+> ⚠️ **This is a v0.2.0 beta release.** Core functionality works, but some features are still under development. See the [Roadmap](#%EF%B8%8F-roadmap) for what's coming next.
 
 ---
 
