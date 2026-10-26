@@ -11,7 +11,7 @@
     <img alt="GitHub License" src="https://img.shields.io/github/license/bspwmctl/bspwmctl?style=flat&color=red"></a>
   
   <a href="https://github.com/bspwmctl/bspwmctl/releases/tag/v0.2.0-beta.1">
-    <img alt="Version" src="https://img.shields.io/badge/Version-0.2.0--beta.1-blue?labelColor=gray&style=flat"></a>
+    <img alt="Version" src="https://img.shields.io/github/v/release/bspwmctl/bspwmctl?include_prereleases&label=Version&color=blue&labelColor=gray&style=flat"></a>
   
   <a href="https://github.com/bspwmctl/bspwmctl/actions/workflows/packages.yml">
     <img alt="Build" src="https://img.shields.io/github/actions/workflow/status/bspwmctl/bspwmctl/packages.yml?branch=main&label=build"></a>
