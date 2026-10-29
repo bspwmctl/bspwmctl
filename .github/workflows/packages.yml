@@ -84,6 +84,7 @@ jobs:
           su tester -c 'bspwmctl theme default'
           test -x /home/tester/.config/bspwm/bspwmrc
           test -f /home/tester/.config/sxhkd/sxhkdrc
+          test -f /usr/share/bash-completion/completions/bspwmctl
           su tester -c 'bspwmctl uninstall --yes'
           test ! -e /home/tester/.config/bspwm
 

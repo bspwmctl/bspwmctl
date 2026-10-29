@@ -37,6 +37,28 @@ contents:
     dst: /usr/share/bspwmctl/config
     type: tree
 
+  - src: ./bspwmctl.1.gz
+    dst: /usr/share/man/man1/bspwmctl.1.gz
+
+  - src: ./completions/bspwmctl.bash
+    dst: /usr/share/bash-completion/completions/bspwmctl
+
+  - src: ./completions/bspwmctl.fish
+    dst: /usr/share/fish/vendor_completions.d/bspwmctl.fish
+
+  # Debian's zsh doesn't read site-functions, Arch's and Fedora's don't read vendor-completions
+  - src: ./completions/_bspwmctl
+    dst: /usr/share/zsh/vendor-completions/_bspwmctl
+    packager: deb
+
+  - src: ./completions/_bspwmctl
+    dst: /usr/share/zsh/site-functions/_bspwmctl
+    packager: rpm
+
+  - src: ./completions/_bspwmctl
+    dst: /usr/share/zsh/site-functions/_bspwmctl
+    packager: archlinux
+
   - src: ./CHANGELOG.md
     dst: /usr/share/doc/bspwmctl/CHANGELOG.md
 

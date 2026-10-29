@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `bspwmctl update`: downloads the latest release's package from GitHub and installs it with apt, dnf or pacman. Betas update to newer betas, stable versions only to stable ones. Configs are left alone unless `--configs` is given, which re-applies the new defaults (backing up the current ones)
 - `bspwmctl uninstall`: removes the bspwmctl configs, fonts and `~/.zshrc`, puts back the configs you had before installing bspwmctl and your previous login shell. Everything removed is backed up first; installed programs are kept. Asks for confirmation unless `--yes` is given
+- `man bspwmctl` manual page
+- Tab completion for bash, zsh and fish (commands, options, themes and backup names)
 - bspwmctl now remembers what was in `~/.config` and `~/.zshrc` before it first wrote there (`~/.local/share/bspwmctl/originals`), so `uninstall` can restore it. Installs made with 0.2.0-beta.1 can't be told apart from your own configs, so `uninstall` removes them all (backed up)
 
 ### Changed

@@ -29,7 +29,9 @@ rm -rf dist
 mkdir -p "$STAGE"
 
 # Stage the files with normalized permissions, independent of the local umask
-cp -r bspwmctl config CHANGELOG.md LICENSE packaging/nfpm.yaml "$STAGE/"
+cp -r bspwmctl config completions CHANGELOG.md LICENSE packaging/nfpm.yaml "$STAGE/"
+# Man pages are installed compressed
+gzip -9n < man/bspwmctl.1 > "$STAGE/bspwmctl.1.gz"
 chmod -R u=rwX,go=rX "$STAGE"
 
 for packager in deb rpm archlinux; do
