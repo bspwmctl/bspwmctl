@@ -21,6 +21,7 @@ NC='\033[0m'
 # Global variables
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 VERSION="0.2.0-beta.1"
+REPO="bspwmctl/bspwmctl"
 XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 THEMES=(default)
 BSPWMCTL_DIR="$XDG_DATA_HOME/bspwmctl"
@@ -28,6 +29,12 @@ BSPWMCTL_DIR="$XDG_DATA_HOME/bspwmctl"
 # One backup directory per run, created on the first overwritten file
 BACKUP_ROOT="$BSPWMCTL_DIR/backups"
 BACKUP_DIR=""
+
+# What was in $HOME before bspwmctl first wrote to it, for uninstall
+ORIGINALS="$BSPWMCTL_DIR/originals"
+
+# Temporary download directory, removed on exit
+TMP_DIR=""
 
 # Bundled configs: next to the script when run from the repo, /usr/share when installed as a package
 if [[ -d "$SCRIPT_DIR/config" ]]; then
@@ -51,7 +58,7 @@ ctrl_c() {
 }
 
 trap ctrl_c INT
-trap 'tput cnorm 2> /dev/null || true' EXIT
+trap 'tput cnorm 2> /dev/null || true; [[ -z "$TMP_DIR" ]] || rm -rf "$TMP_DIR"' EXIT
 
 
 
@@ -76,8 +83,8 @@ print_help() {
    install            Install bspwm environment
    theme [name]       Apply or show available themes
    restore [backup]   List config backups / restore one
-   uninstall          Remove bspwmctl files and configs (coming soon)
-   update             Update bspwmctl to latest version (coming soon)
+   update             Update bspwmctl to the latest version
+   uninstall          Remove bspwmctl configs, restore your previous ones
    help               Show this help panel
    version            Show the version
 
@@ -92,6 +99,12 @@ print_help() {
  Theme command:
    bspwmctl theme              Show current theme / available themes
    bspwmctl theme <name>       Apply selected theme
+
+ Update options:
+   --configs           Also re-apply the new default configs
+
+ Uninstall options:
+   -y, --yes           Don't ask for confirmation
 
  Backups:
    Files that would be overwritten are first copied to
@@ -121,7 +134,8 @@ print_version() {
 
 
 check_os() {
-  local id
+  # os-release also sets VERSION, which would replace bspwmctl's own
+  local id ID ID_LIKE PRETTY_NAME VERSION
 
   if [[ -f /etc/os-release ]]; then
     # shellcheck source=/dev/null
@@ -248,6 +262,11 @@ backup_path() {
     log "Saving current configs to $BACKUP_DIR"
   fi
 
+  # Already saved in this run
+  if [[ -e "$BACKUP_DIR/$rel" || -L "$BACKUP_DIR/$rel" ]]; then
+    return
+  fi
+
   mkdir -p "$BACKUP_DIR/$(dirname "$rel")"
   cp -a "$path" "$BACKUP_DIR/$rel"
 }
@@ -260,6 +279,49 @@ would_overwrite() {
   command -v diff > /dev/null || return 0
   # LC_ALL=C: diff messages are translated otherwise
   { LC_ALL=C diff -rq "$1" "$2" 2> /dev/null || true; } | grep -qE ' differ$|while file'
+}
+
+
+# $ORIGINALS has one "<key>\t<value>" line per path, written the first time
+# bspwmctl touches it: "<path relative to $HOME>\t<backup holding the original>",
+# or "-" as value if it didn't exist, plus "@shell\t<previous login shell>".
+get_original() {
+  if [[ -f "$ORIGINALS" ]]; then
+    awk -F'\t' -v key="$1" '$1 == key { print $2; exit }' "$ORIGINALS"
+  fi
+}
+
+
+# Installs made before $ORIGINALS existed (0.2.0-beta.1) can't tell the
+# originals from bspwmctl's own configs anymore, so they are not tracked
+tracking_originals() {
+  [[ -f "$ORIGINALS" || ! -f "$BSPWMCTL_DIR/.current_theme" ]]
+}
+
+
+set_original() {
+  if tracking_originals && [[ -z "$(get_original "$1")" ]]; then
+    mkdir -p "$BSPWMCTL_DIR"
+    printf '%s\t%s\n' "$1" "$2" >> "$ORIGINALS"
+  fi
+}
+
+
+# Call before bspwmctl writes a path under $HOME
+remember_original() {
+  local path="$1"
+  local rel="${path#"$HOME"/}"
+
+  if ! tracking_originals || [[ -n "$(get_original "$rel")" ]]; then
+    return
+  fi
+
+  if [[ -e "$path" ]]; then
+    backup_path "$path"
+    set_original "$rel" "$(basename "$BACKUP_DIR")"
+  else
+    set_original "$rel" "-"
+  fi
 }
 
 
@@ -278,6 +340,7 @@ configure() {
 
   [[ -d "$CONFIG_SRC/$target" ]] || die "Error: configs not found in $CONFIG_SRC/$target"
 
+  remember_original "$config_dir"
   if would_overwrite "$CONFIG_SRC/$target" "$config_dir"; then
     backup_path "$config_dir"
   fi
@@ -308,19 +371,23 @@ install_fonts() {
 
 
 setup_zsh() {
-  local zsh_path user
+  local zsh_path user current_shell
 
   zsh_path="$(command -v zsh)" || { warn "zsh not found, skipping shell setup."; return; }
   user="$(id -un)"
 
   log "Setting up zsh..."
 
+  remember_original "$HOME/.zshrc"
   if would_overwrite "$CONFIG_SRC/zsh/zshrc" "$HOME/.zshrc"; then
     backup_path "$HOME/.zshrc"
   fi
   cp -f "$CONFIG_SRC/zsh/zshrc" "$HOME/.zshrc"
 
-  if [[ "$(getent passwd "$user" | cut -d: -f7)" != "$zsh_path" ]]; then
+  current_shell="$(getent passwd "$user" | cut -d: -f7)"
+  set_original "@shell" "$current_shell"
+
+  if [[ "$current_shell" != "$zsh_path" ]]; then
     sudo usermod -s "$zsh_path" "$user"
     success "Default shell changed to zsh (takes effect on next login)."
   fi
@@ -516,8 +583,199 @@ cmd_restore() {
 }
 
 
-cmd_uninstall() { die "Not implemented yet: uninstall"; }
-cmd_update()    { die "Not implemented yet: update"; }
+# True if version $1 is newer than $2. As in deb/rpm/pacman, a pre-release
+# (0.2.0-beta.1) is older than its release (0.2.0): sort -V puts "~" first.
+version_gt() {
+  local a="${1/-/\~}" b="${2/-/\~}"
+  [[ "$a" != "$b" && "$(printf '%s\n' "$a" "$b" | sort -V | tail -n 1)" == "$a" ]]
+}
+
+
+# Newest release with a package ending in $1, printed as "<tag> <url>".
+# Pre-releases only count if $2 is 1 (the installed version is one too).
+latest_release() {
+  local json
+
+  json="$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=30")" || return 1
+
+  grep -oE '"(tag_name|prerelease|browser_download_url)": *("[^"]*"|true|false)' <<< "$json" |
+    awk -F'"' -v suffix="$1" -v allow_pre="$2" '
+      $2 == "tag_name"   { tag = $4 }
+      $2 == "prerelease" { pre = ($3 ~ /true/) }
+      $2 == "browser_download_url" && (allow_pre || !pre) &&
+        substr($4, length($4) - length(suffix) + 1) == suffix { print tag, $4; exit }
+    '
+}
+
+
+cmd_update() {
+  local reapply=false updated=false allow_pre=0 suffix latest tag url version pkg
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --configs)
+        reapply=true
+        shift
+        ;;
+      *)
+        die "Unknown option: $1. Run 'bspwmctl help' for usage."
+        ;;
+    esac
+  done
+
+  # A clone of the repo is updated with git, not with packages
+  [[ "$SCRIPT_DIR" == /usr/bin ]] || die "bspwmctl is running from $SCRIPT_DIR, not from a package. Update it with 'git pull'."
+  command -v curl > /dev/null || die "curl is required to download updates."
+
+  check_os
+  set_packages
+
+  case "$PKG_MANAGER" in
+    apt)    suffix="_all.deb" ;;
+    dnf)    suffix=".noarch.rpm" ;;
+    pacman) suffix="-any.pkg.tar.zst" ;;
+  esac
+
+  if [[ "$VERSION" == *-* ]]; then
+    allow_pre=1
+  fi
+
+  log "Checking for updates..."
+  latest="$(latest_release "$suffix" "$allow_pre")" || die "Could not reach GitHub. Check your connection and try again."
+  [[ -n "$latest" ]] || die "No release with a package for $PKG_MANAGER found."
+
+  tag="${latest%% *}"
+  url="${latest#* }"
+  version="${tag#v}"
+
+  if version_gt "$version" "$VERSION"; then
+    log "Updating bspwmctl $VERSION → $version"
+
+    TMP_DIR="$(mktemp -d)"
+    # apt reads local packages as its unprivileged _apt user
+    chmod 755 "$TMP_DIR"
+    pkg="$TMP_DIR/${url##*/}"
+    curl -fL --progress-bar -o "$pkg" "$url" || die "Download failed: $url"
+    chmod 644 "$pkg"
+
+    case "$PKG_MANAGER" in
+      apt)    sudo apt-get install -y "$pkg" ;;
+      dnf)    sudo dnf install -y "$pkg" ;;
+      pacman) sudo pacman -U --noconfirm "$pkg" ;;
+    esac
+
+    updated=true
+    success "bspwmctl updated to $version."
+    echo "What's new: https://github.com/$REPO/releases/tag/$tag"
+  else
+    success "bspwmctl $VERSION is up to date."
+  fi
+
+  if [[ "$reapply" == true ]]; then
+    # Run the installed (possibly new) version, so it applies its own configs
+    /usr/bin/bspwmctl theme "$(get_current_theme)"
+  elif [[ "$updated" == true ]]; then
+    log "Your configs were not changed. To apply the new defaults (yours are backed up first): bspwmctl update --configs"
+  fi
+}
+
+
+cmd_uninstall() {
+  local assume_yes=false legacy=false answer rel target orig existed user shell_now shell_orig
+  local paths=(.config/bspwm .config/sxhkd .config/kitty .config/polybar .config/picom .config/dunst .zshrc)
+  local fonts_dir="$XDG_DATA_HOME/fonts/bspwmctl"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -y|--yes)
+        assume_yes=true
+        shift
+        ;;
+      *)
+        die "Unknown option: $1. Run 'bspwmctl help' for usage."
+        ;;
+    esac
+  done
+
+  if ! tracking_originals; then
+    legacy=true
+  fi
+
+  echo "This removes the bspwmctl configs (~/.config/bspwm, sxhkd, kitty, polybar, picom,"
+  echo "dunst and ~/.zshrc) and fonts, and puts back the configs you had before bspwmctl."
+  echo "Everything removed is backed up first. Installed programs are not removed."
+  echo
+
+  if [[ "$assume_yes" == false ]]; then
+    tput cnorm 2> /dev/null || true
+    read -r -p "Continue? [y/N] " answer || answer=""
+    tput civis 2> /dev/null || true
+
+    if [[ ! "$answer" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+      log "Cancelled."
+      return
+    fi
+  fi
+
+  for rel in "${paths[@]}"; do
+    target="$HOME/$rel"
+    orig="$(get_original "$rel")"
+
+    # Not written by bspwmctl (e.g. ~/.config/polybar after --minimal): leave it alone.
+    # Untracked installs can't know, so they remove everything (it's backed up).
+    if [[ -z "$orig" && "$legacy" == false ]]; then
+      continue
+    fi
+
+    existed=false
+    if [[ -e "$target" || -L "$target" ]]; then
+      existed=true
+      backup_path "$target"
+      rm -rf "$target"
+    fi
+
+    if [[ -n "$orig" && "$orig" != - && -e "$BACKUP_ROOT/$orig/$rel" ]]; then
+      mkdir -p "$(dirname "$target")"
+      cp -a "$BACKUP_ROOT/$orig/$rel" "$target"
+      success "Restored your previous ~/$rel"
+    elif [[ "$existed" == true ]]; then
+      success "Removed ~/$rel"
+    fi
+  done
+
+  if [[ -d "$fonts_dir" ]]; then
+    rm -rf "$fonts_dir"
+    fc-cache -f > /dev/null 2>&1 || true
+    success "Removed fonts from $fonts_dir"
+  fi
+
+  user="$(id -un)"
+  shell_now="$(getent passwd "$user" | cut -d: -f7)"
+  shell_orig="$(get_original "@shell")"
+
+  # Only undo the change to zsh, not a shell the user picked later
+  if [[ "${shell_now##*/}" == zsh ]]; then
+    if [[ -n "$shell_orig" && "$shell_orig" != "$shell_now" && -x "$shell_orig" ]]; then
+      sudo usermod -s "$shell_orig" "$user"
+      success "Login shell set back to $shell_orig (takes effect on next login)."
+    elif [[ "$legacy" == true ]]; then
+      warn "Your login shell is zsh. If bspwmctl changed it, go back to bash with: chsh -s /bin/bash"
+    fi
+  fi
+
+  rm -f "$ORIGINALS" "$BSPWMCTL_DIR/.current_theme"
+
+  success "bspwmctl configs removed."
+  log "The installed programs (bspwm, kitty...) were kept. Backups stay in $BACKUP_ROOT"
+
+  if command -v apt-get > /dev/null; then
+    log "To remove bspwmctl itself: sudo apt remove bspwmctl"
+  elif command -v pacman > /dev/null; then
+    log "To remove bspwmctl itself: sudo pacman -R bspwmctl"
+  elif command -v dnf > /dev/null; then
+    log "To remove bspwmctl itself: sudo dnf remove bspwmctl"
+  fi
+}
 
 
 
@@ -526,7 +784,7 @@ main() {
   shift || true
 
   # Configs go to the invoking user's $HOME; sudo is used only for packages
-  if [[ $EUID -eq 0 && "$cmd" =~ ^(install|theme|restore)$ ]]; then
+  if [[ $EUID -eq 0 && "$cmd" =~ ^(install|theme|restore|update|uninstall)$ ]]; then
     die "Do not run 'bspwmctl $cmd' as root. Use a normal user."
   fi
 
