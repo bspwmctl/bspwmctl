@@ -208,6 +208,12 @@ bspwmctl theme
 # Re-apply the default configs
 bspwmctl theme default
 
+# Update bspwmctl (add --configs to also apply the new default configs)
+bspwmctl update
+
+# Remove the bspwmctl configs and restore the ones you had before
+bspwmctl uninstall
+
 # List / restore config backups
 bspwmctl restore
 bspwmctl restore <backup>
@@ -291,8 +297,8 @@ To set a wallpaper, place an image at `~/.config/bspwm/wallpaper.png` (or `.jpg`
 - [x] Configuration backup/restore
 - [ ] Powerlevel10k
 - [ ] Theme system implementation
-- [ ] `bspwmctl update` command
-- [ ] `bspwmctl uninstall` command
+- [x] `bspwmctl update` command
+- [x] `bspwmctl uninstall` command
 
 ### v0.3.0+ (Future)
 - [ ] External theme repository support
