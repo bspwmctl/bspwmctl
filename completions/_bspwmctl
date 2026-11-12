@@ -1,0 +1,60 @@
+#compdef bspwmctl
+
+# zsh completion for bspwmctl
+
+_bspwmctl_themes() {
+  # Keep in sync with THEMES in bspwmctl
+  local themes=(default)
+  _describe -t themes 'theme' themes
+}
+
+_bspwmctl_backups() {
+  local dir="${XDG_DATA_HOME:-$HOME/.local/share}/bspwmctl/backups"
+  local -a backups
+  backups=("$dir"/*(N/:t))
+  _describe -t backups 'backup' backups
+}
+
+_bspwmctl() {
+  local -a commands
+  commands=(
+    'install:Install the bspwm environment'
+    'theme:Apply or show available themes'
+    'restore:List config backups or restore one'
+    'update:Update bspwmctl to the latest version'
+    'uninstall:Remove bspwmctl configs and restore your previous ones'
+    'help:Show the help panel'
+    'version:Show the version'
+  )
+
+  if (( CURRENT == 2 )); then
+    _describe -t commands 'bspwmctl command' commands
+    _arguments '(- *)'{-h,--help}'[show help]' '(- *)'{-v,--version}'[show version]'
+    return
+  fi
+
+  case "$words[2]" in
+    install)
+      _arguments -s \
+        '(--standard --all)--minimal[bspwm, sxhkd, kitty, rofi (default)]' \
+        '(--minimal --all)--standard[+ polybar, picom, notifications, lock screen, zsh...]' \
+        '(--minimal --standard)--all[+ file manager, browser and other apps]' \
+        '--no-dep[skip package installation]' \
+        '--theme[apply theme after installation]:theme:_bspwmctl_themes'
+      ;;
+    theme)
+      (( CURRENT == 3 )) && _bspwmctl_themes
+      ;;
+    restore)
+      (( CURRENT == 3 )) && _bspwmctl_backups
+      ;;
+    update)
+      _arguments '--configs[also re-apply the new default configs]'
+      ;;
+    uninstall)
+      _arguments '(-y --yes)'{-y,--yes}"[don't ask for confirmation]"
+      ;;
+  esac
+}
+
+_bspwmctl "$@"

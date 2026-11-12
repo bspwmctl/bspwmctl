@@ -1,0 +1,136 @@
+.TH BSPWMCTL 1 "2026-10-29" "bspwmctl" "User Commands"
+.SH NAME
+bspwmctl \- opinionated bspwm desktop installer and manager
+.SH SYNOPSIS
+.B bspwmctl
+.I command
+.RI [ options ]
+.SH DESCRIPTION
+.B bspwmctl
+installs a complete bspwm desktop (bspwm, sxhkd, kitty, rofi, and optionally
+polybar, picom, dunst, zsh and more) from the official packages of Debian,
+Ubuntu, Arch, Fedora and their derivatives, and applies a ready-to-use
+configuration to
+.IR ~/.config .
+.PP
+Run every command as your normal user, not as root. bspwmctl uses
+.BR sudo (8)
+only to install packages and change the login shell.
+.SH COMMANDS
+.TP
+.B install \fR[\fIoptions\fR]
+Install the packages for the selected mode and apply the configuration.
+.TP
+.B theme \fR[\fIname\fR]
+Without a name, show the current theme and the available ones.
+With a name, apply that theme. The only theme for now is
+.BR default .
+.TP
+.B restore \fR[\fIbackup\fR]
+Without arguments, list the config backups. With a backup name, restore it.
+The current configs are backed up first, so a restore can be undone.
+.TP
+.B update \fR[\fB\-\-configs\fR]
+Download the package of the latest release from GitHub and install it with
+apt, dnf or pacman. Beta versions also update to newer betas; stable versions
+only to stable releases. Only works when bspwmctl was installed as a package.
+.TP
+.B uninstall \fR[\fB\-y\fR]
+Remove the configs, fonts and
+.I ~/.zshrc
+written by bspwmctl, restore the ones you had before and your previous login
+shell. Everything removed is backed up first. Installed programs are kept.
+.TP
+.B help
+Show the help panel.
+.TP
+.B version
+Show the version.
+.SH OPTIONS
+.SS install
+.TP
+.B \-\-minimal
+bspwm, sxhkd, kitty and rofi. This is the default.
+.TP
+.B \-\-standard
+Also polybar, picom, dunst, a lock screen, screenshots, media keys and zsh,
+which becomes the login shell.
+.TP
+.B \-\-all
+Also a file manager, a browser and other applications.
+.TP
+.B \-\-no\-dep
+Don't install packages, only apply the configuration.
+.TP
+.BI \-\-theme " name"
+Theme to apply after installing (default:
+.BR default ).
+.SS update
+.TP
+.B \-\-configs
+Also re-apply the configs of the current theme from the new version.
+Your current configs are backed up first.
+.SS uninstall
+.TP
+.BR \-y ", " \-\-yes
+Don't ask for confirmation.
+.SS Global
+.TP
+.BR \-h ", " \-\-help
+Show the help panel.
+.TP
+.BR \-v ", " \-\-version
+Show the version.
+.SH FILES
+.TP
+.I ~/.config/bspwm, sxhkd, kitty, polybar, picom, dunst
+Configs applied by bspwmctl.
+.TP
+.I ~/.config/bspwm/wallpaper.png \fRor\fP .jpg
+Wallpaper, if present.
+.TP
+.I ~/.local/share/bspwmctl/backups/
+Backups of the configs replaced by bspwmctl, one directory per run.
+.TP
+.I ~/.local/share/bspwmctl/
+Also stores the current theme and what existed before bspwmctl, for
+.BR uninstall .
+.TP
+.I ~/.local/share/fonts/bspwmctl/
+Bundled fonts.
+.TP
+.I /usr/share/bspwmctl/config/
+Default configs shipped with the package.
+.PP
+.I ~/.local/share
+is
+.B $XDG_DATA_HOME
+when it is set.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Error; the message explains why.
+.TP
+.B 130
+Cancelled with Ctrl+C.
+.SH EXAMPLES
+.TP
+.B bspwmctl install \-\-standard
+Install the recommended desktop.
+.TP
+.B bspwmctl theme default
+Re-apply the default configs.
+.TP
+.B bspwmctl update \-\-configs
+Update bspwmctl and apply its new configs.
+.SH SEE ALSO
+.BR bspwm (1),
+.BR bspc (1),
+.BR sxhkd (1)
+.PP
+Documentation: https://bspwmctl.github.io/docs/
+.br
+Source and bug reports: https://github.com/bspwmctl/bspwmctl
