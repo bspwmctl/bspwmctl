@@ -10,7 +10,7 @@
   <a href="https://github.com/bspwmctl/bspwmctl/blob/main/LICENSE">
     <img alt="GitHub License" src="https://img.shields.io/github/license/bspwmctl/bspwmctl?style=flat&color=red"></a>
   
-  <a href="https://github.com/bspwmctl/bspwmctl/releases/tag/v0.2.0-beta.1">
+  <a href="https://github.com/bspwmctl/bspwmctl/releases">
     <img alt="Version" src="https://img.shields.io/github/v/release/bspwmctl/bspwmctl?include_prereleases&label=Version&color=blue&labelColor=gray&style=flat"></a>
   
   <a href="https://github.com/bspwmctl/bspwmctl/actions/workflows/packages.yml">
@@ -220,7 +220,12 @@ bspwmctl restore <backup>
 
 # Check version
 bspwmctl --version
+
+# Read the manual
+man bspwmctl
 ```
+
+Tab completion works in bash, zsh and fish (bash needs the `bash-completion` package, installed by default except on Arch).
 
 ---
 

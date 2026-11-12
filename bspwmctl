@@ -20,7 +20,7 @@ NC='\033[0m'
 
 # Global variables
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-VERSION="0.2.0-beta.1"
+VERSION="0.2.0-beta.2"
 REPO="bspwmctl/bspwmctl"
 XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 THEMES=(default)
