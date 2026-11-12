@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned for v0.2.0
+- Powerlevel10k
+- Theme system implementation
+
+## [0.2.0-beta.2] - 2026-11-12
+
 ### Added
 - `bspwmctl update`: downloads the latest release's package from GitHub and installs it with apt, dnf or pacman. Betas update to newer betas, stable versions only to stable ones. Configs are left alone unless `--configs` is given, which re-applies the new defaults (backing up the current ones)
 - `bspwmctl uninstall`: removes the bspwmctl configs, fonts and `~/.zshrc`, puts back the configs you had before installing bspwmctl and your previous login shell. Everything removed is backed up first; installed programs are kept. Asks for confirmation unless `--yes` is given
@@ -16,10 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - The packages now depend on `curl` (used by `update`)
-
-### Planned for v0.2.0
-- Powerlevel10k
-- Theme system implementation
 
 ## [0.2.0-beta.1] - 2026-10-25
 
@@ -74,6 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update and uninstall commands not implemented
 - Zsh and Powerlevel10k installation pending
 
-[Unreleased]: https://github.com/bspwmctl/bspwmctl/compare/v0.2.0-beta.1...HEAD
+[Unreleased]: https://github.com/bspwmctl/bspwmctl/compare/v0.2.0-beta.2...HEAD
+[0.2.0-beta.2]: https://github.com/bspwmctl/bspwmctl/compare/v0.2.0-beta.1...v0.2.0-beta.2
 [0.2.0-beta.1]: https://github.com/bspwmctl/bspwmctl/compare/v0.1.0...v0.2.0-beta.1
 [0.1.0]: https://github.com/bspwmctl/bspwmctl/releases/tag/v0.1.0
